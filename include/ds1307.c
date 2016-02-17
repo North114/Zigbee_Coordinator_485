@@ -146,9 +146,9 @@ unsigned char Read_Current_Time(unsigned char DevAddr,unsigned char *p,unsigned 
 }
 
 /* 
-** 初始化时间
+** 初始化日期时间
 */
-void InitTime(unsigned char s,unsigned char m,unsigned char h,unsigned char w,unsigned char d,unsigned char mon,unsigned char y) {
+volatile void InitDateTime(unsigned char s,unsigned char m,unsigned char h,unsigned char w,unsigned char d,unsigned char mon,unsigned char y) {
 	WriteEEPROM(DS1307,0x00,s);//second
 	_delay_ms(10);
 	WriteEEPROM(DS1307,0x01,m);//minute
@@ -162,5 +162,29 @@ void InitTime(unsigned char s,unsigned char m,unsigned char h,unsigned char w,un
 	WriteEEPROM(DS1307,0x05,mon);//month
 	_delay_ms(10);
 	WriteEEPROM(DS1307,0x06,y);//year
+	_delay_ms(10);
+}
+/*
+** 初始化日期
+*/
+volatile void InitDate(unsigned char y,unsigned char mon,unsigned char d,unsigned char w) {
+	WriteEEPROM(DS1307,0x03,w);//day in a week
+	_delay_ms(10);
+	WriteEEPROM(DS1307,0x04,d);//day
+	_delay_ms(10);
+	WriteEEPROM(DS1307,0x05,mon);//month
+	_delay_ms(10);
+	WriteEEPROM(DS1307,0x06,y);//year
+	_delay_ms(10);
+}
+/*
+** 初始化时间
+*/
+volatile void InitTime(unsigned char h,unsigned char m,unsigned char s){
+	WriteEEPROM(DS1307,0x00,s);//second
+	_delay_ms(10);
+	WriteEEPROM(DS1307,0x01,m);//minute
+	_delay_ms(10);
+	WriteEEPROM(DS1307,0x02,h);//hour
 	_delay_ms(10);
 }

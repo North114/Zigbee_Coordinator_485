@@ -14,6 +14,7 @@
 	/* Function Declaration */
 	unsigned char ReadDS1307(unsigned char DevAddr,unsigned char RegAddr);
 	unsigned char Read_Current_Time(unsigned char DevAddr,unsigned char *p,unsigned char num);
-	void InitTime(unsigned char,unsigned char,unsigned char,unsigned char,unsigned char,unsigned char,unsigned char);
-
+	void InitDateTime(unsigned char,unsigned char,unsigned char,unsigned char,unsigned char,unsigned char,unsigned char);
+    void InitDate(unsigned char,unsigned char,unsigned char,unsigned char);
+    void InitTime(unsigned char,unsigned char,unsigned char);
 #endif

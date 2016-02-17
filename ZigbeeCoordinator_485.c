@@ -1215,16 +1215,23 @@ void WriteDataPackage(unsigned char ControlByte_485,unsigned char len) {
     if(identify[3] == 0x04 && identify[2] == 0x00) {
         if(identify[1] == 0x01 && identify[0] == 0x01) {
             /* 设置日期 */
-            //InitTime(0x00,0x00,0x00,0x01,0x22,0x02,0x16);
+            //InitDateTime(0x00,0x00,0x00,0x01,0x22,0x02,0x16);
             
+            InitDate(recData_485[dataStartIndex + 3],recData_485[dataStartIndex + 2],recData_485[dataStartIndex + 1],recData_485[dataStartIndex]);
+
+            /*
             t = WriteEEPROM(DS1307,WEEKDAY,recData_485[dataStartIndex]);
+            USART0_Send_Byte(recData_485[dataStartIndex]);
             dataStartIndex += 1;
             t = WriteEEPROM(DS1307,DATE,recData_485[dataStartIndex]);
+            USART0_Send_Byte(recData_485[dataStartIndex]);
             dataStartIndex += 1;
             t = WriteEEPROM(DS1307,MONTH,recData_485[dataStartIndex]);
+            USART0_Send_Byte(recData_485[dataStartIndex]);
             dataStartIndex += 1;
             t = WriteEEPROM(DS1307,YEAR,recData_485[dataStartIndex]);
-            
+            USART0_Send_Byte(recData_485[dataStartIndex]);
+            */
         } else if(identify[1] == 0x01 && identify[0] == 0x02) {
             /* 设置时间 */
             WriteEEPROM(DS1307,SECOND,recData_485[dataStartIndex]);
@@ -1232,7 +1239,7 @@ void WriteDataPackage(unsigned char ControlByte_485,unsigned char len) {
             WriteEEPROM(DS1307,MINUTE,recData_485[dataStartIndex]);
             dataStartIndex += 1;
             WriteEEPROM(DS1307,HOUR,recData_485[dataStartIndex]);
-        } else if(identify[1] == 0x04&& identify[0] == 0x01) {
+        } else if(identify[1] == 0x04 && identify[0] == 0x01) {
             /* 设置通信地址 */
             for(i = 0; i < sizeof(myaddr);++i,dataStartIndex++) {
                 myaddr[i] = recData_485[dataStartIndex];
@@ -1291,10 +1298,10 @@ void ReceivedDataProcess_485(int num) {
 	/* Check Sum */
 	if(CheckSum_485 != recData_485[num - 1]) {
 		#ifdef DEBUG
-		USART0_Send_Byte(0x20);
-		USART0_Send_Byte(CheckSum_485);
-		USART0_Send_Byte(recData_485[num - 1]);
-		USART0_Send_Byte(num);
+            USART0_Send_Byte(0x20);
+            USART0_Send_Byte(CheckSum_485);
+            USART0_Send_Byte(recData_485[num - 1]);
+            USART0_Send_Byte(num);
 		#endif
 		return;
 	}
@@ -1303,7 +1310,7 @@ void ReceivedDataProcess_485(int num) {
 	for(i = 0;i < sizeof(myaddr);++i) {
 		if(myaddr[i] != recData_485[i] && 0x99 != recData_485[i] && 0xAA != recData_485[i]) {
 			#ifdef DEBUG
-			USART0_Send_Byte(0x30);
+                USART0_Send_Byte(0x30);
 			#endif
 			return;
 		}
@@ -1418,7 +1425,7 @@ int main() {
     HistoryProblem.voltageRecordIndex = 0;
     voltagePassRate[voltagePassRateIndex].minVoltage = 220;
     
-    //InitTime(0x00,0x20,0x17,0x04,0x28,0x01,0x16);
+    InitDateTime(0x16,0x02,0x01,0x01,0x12,0x00,0x00);
 
     while(1) {
 		/* read switch button status */
