@@ -42,7 +42,7 @@ date:03-17-2015
 + VoltageMSB + VoltagelSB + EndByte_Zigbee**/
 #define recBufferSize_Zigbee 14// larger than PackLen
 #define Zigbee_PackLen 7
-#define Zigbee_AckLen 5
+#define Zigbee_AckLen 6
 
 #define StartByte_Zigbee 0xAA
 #define EndByte_Zigbee 0x75 //End byte should less than 128,since it's a character
@@ -65,9 +65,9 @@ date:03-17-2015
 #define HISTORY_CACHE_SIZE 10
 #define MAX_UCHAR 255
 #define MAX_UINT 65535
-#define ONCHIP_EEPROM_SIZE (2*1024) //ÈÃ±àÒëÆ÷È¥°ïÄãËã
-#define MONITOR_EEPROM_DOWN 100  //ÆðÊ¼µØÖ·
-#define MONITOR_EEPROM_SIZE (4*24*4*2) //×Ö½ÚÊý
+#define ONCHIP_EEPROM_SIZE (2*1024) //?Ã±?????È¥??????
+#define MONITOR_EEPROM_DOWN 100  //??Ê¼??Ö·
+#define MONITOR_EEPROM_SIZE (4*24*4*2) //?Ö½???
 
 #define CACHE_TIME 250
 #define CACHE_SPACE 200
@@ -89,7 +89,7 @@ volatile unsigned char index_Zigbee = 0;
 volatile unsigned char recNum_Zigbee = 0;
 volatile unsigned char recBuffer_Zigbee[recBufferSize_Zigbee];
 
-volatile unsigned char ACK_Zigbee[Zigbee_AckLen] = {StartByte_Zigbee,0,0,0,EndByte_Zigbee};
+volatile unsigned char ACK_Zigbee[Zigbee_AckLen] = {StartByte_Zigbee,0x04,0,0,0,EndByte_Zigbee};
 
 
 /* 485 Relatted Variable Defination
@@ -103,41 +103,41 @@ volatile unsigned char recBuffer_485[recBufferSize_485];
 volatile unsigned char recData_485[recBufferSize_485];
 volatile unsigned char replyBuffer_485[replyBufferSize_485];
 
-/* Ö¡×Ö½Ú */
+/* Ö¡?Ö½? */
 volatile unsigned char CheckSum_485 = 0;
 volatile unsigned char ControlByte_485 = 0;
 volatile unsigned char DataLength_485 = 0;
 
 volatile unsigned char RealTimeQuery = 0;
 
-/* ²éÑ¯ÃüÁîÏà¹Ø±äÁ¿ */
-volatile unsigned char ThisHour;//µ±Ç°Ð¡Ê±Êý
+/* ??Ñ¯???????Ø±??? */
+volatile unsigned char ThisHour;//??Ç°Ð¡Ê±??
 volatile unsigned char oneMinuteCount = 0;
 volatile unsigned char oneMinuteFlag = 0;
 volatile unsigned char monitorIndex = MONITOR_EEPROM_DOWN;
 
-/* ¶ÔÓ¦ÓÚµçÄÜÊý¾Ý±êÊ¶(±í 1-1) */
+/* ??Ó¦?Úµ??????Ý±?Ê¶(?? 1-1) */
 volatile struct CurrentDataBlock_1 {
-	unsigned int thisCurrent;//µ±Ç°Â©µçÁ÷Öµ
-	unsigned int currentLeakTimes;//µ±Ç°Ê£ÓàµçÁ÷³¬ÏÞ´ÎÊý
-	unsigned int maxCurrent;//½ñÈÕ×î´óÂ©µçÁ÷
-	unsigned int avgCurrent;//½ñÈÕ×îÐ¡Â©µçÖµ
-	unsigned int todayPowerDownTimes;//½ñÈÕµôµç´ÎÊý
+	unsigned int thisCurrent;//??Ç°Â©????Öµ
+	unsigned int currentLeakTimes;//??Ç°Ê£?????????Þ´???
+	unsigned int maxCurrent;//????????Â©????
+	unsigned int avgCurrent;//??????Ð¡Â©??Öµ
+	unsigned int todayPowerDownTimes;//???Õµ???????
 }CurrentDataBlock_1;
 
-/* Ê£ÓàµçÁ÷³¬ÏÞ±¨¾¯ÊÂ¼þ */
+/* Ê£?????????Þ±????Â¼? */
 volatile struct CurrentProblemRecord {
-    volatile unsigned char sYear;//ÆðÊ¼Äê
-    volatile unsigned char sMonth;//ÆðÊ¼ÔÂ
-    volatile unsigned char sDate;//ÆðÊ¼ÈÕ
-    volatile unsigned char sHour;//ÆðÊ¼Ð¡Ê±
-    volatile unsigned char sMinute;//ÆðÊ¼·ÖÖÓ
-    volatile unsigned char sSecond;//ÆðÊ¼Ãë
-    volatile unsigned int maxCurrent;//×î´óÊ£ÓàµçÁ÷Öµ
-    volatile unsigned char id;//²É¼¯Æ÷µÄid
+    volatile unsigned char sYear;//??Ê¼??
+    volatile unsigned char sMonth;//??Ê¼??
+    volatile unsigned char sDate;//??Ê¼??
+    volatile unsigned char sHour;//??Ê¼Ð¡Ê±
+    volatile unsigned char sMinute;//??Ê¼????
+    volatile unsigned char sSecond;//??Ê¼??
+    volatile unsigned int maxCurrent;//????Ê£??????Öµ
+    volatile unsigned char id;//?É¼?????id
 };
 
-/* µôµçÊÂ¼þ¼ÇÂ¼ */
+/* ?????Â¼???Â¼ */
 volatile struct PowerDownRecord {
     volatile unsigned char sYear;
     volatile unsigned char sMonth;
@@ -145,28 +145,28 @@ volatile struct PowerDownRecord {
     volatile unsigned char sHour;
     volatile unsigned char sMinute;
     volatile unsigned char sSecond;
-    volatile unsigned char id;//²É¼¯Æ÷µÄid
+    volatile unsigned char id;//?É¼?????id
 };
-/* ¶ÔÓ¦Óë±íÊÂ¼þ¼ÇÂ¼Êý¾Ý±êÊ¶±àÂë(±í 1-2)*/
+/* ??Ó¦?????Â¼???Â¼???Ý±?Ê¶????(?? 1-2)*/
 volatile struct HistoryProblem {
-    unsigned char CurrentProblemTime_MSB;//Ê£ÓàµçÁ÷³¬ÏÞ×Ü´ÎÊý¸ß1×Ö½Ú
-    unsigned int CurrentProblemTime_LSB;//Ê£ÓàµçÁ÷³¬ÏÞ×Ü´ÎÊýµÍ2×Ö½Ú
-    struct CurrentProblemRecord currentRecord[HISTORY_CACHE_SIZE];//Ê£ÓàµçÁ÷×î½ü10´Î¼ÇÂ¼
+    unsigned char CurrentProblemTime_MSB;//Ê£???????????Ü´?????1?Ö½?
+    unsigned int CurrentProblemTime_LSB;//Ê£???????????Ü´?????2?Ö½?
+    struct CurrentProblemRecord currentRecord[HISTORY_CACHE_SIZE];//Ê£??????????10?Î¼?Â¼
     unsigned char currentRecordIndex;
-    unsigned char VoltageProblemTime_MSB;//¶Ïµç¹ÊÕÏ×Ü´ÎÊý¸ß1×Ö½Ú
-    unsigned int VoltageProblemTime_LSB;//¶ÏµçÊÂ¹Ê×Ü´ÎÊýµÍ2×Ö½Ú
-    struct PowerDownRecord voltageRecord[HISTORY_CACHE_SIZE];//µôµç×î½ü10´Î¼ÇÂ¼
+    unsigned char VoltageProblemTime_MSB;//?Ïµ??????Ü´?????1?Ö½?
+    unsigned int VoltageProblemTime_LSB;//?Ïµ??Â¹??Ü´?????2?Ö½?
+    struct PowerDownRecord voltageRecord[HISTORY_CACHE_SIZE];//????????10?Î¼?Â¼
     unsigned char voltageRecordIndex;
 }HistoryProblem;
 
-/* ¶ÔÓ¦ÓÚ²Î±äÁ¿Êý¾Ý±êÊ¶±àÂë±í(±í 1-3) */
+/* ??Ó¦?Ú²Î±??????Ý±?Ê¶?????ë¨±? 1-3) */
 volatile struct ParameterIdentifier {
 	unsigned char CurrentThreshold;
 	unsigned char VoltageUpperRange;
 	unsigned char VoltageDownRange;
 }ParameterIdentifier = {10,240,200};
 
-/* µçÑ¹ºÏ¸ñÂÊÏà¹ØÖ¸±ê(±í 1-6) */
+/* ??Ñ¹?Ï¸???????Ö¸??(?? 1-6) */
 volatile struct OccurTime {
     unsigned char month;
     unsigned char date;
@@ -180,7 +180,7 @@ volatile struct VoltagePassRate {
     unsigned int minVoltage;
     struct OccurTime minVoltageOccureTime;
 };
-/* ´æ´¢×î½ü15ÈÕµÄµçÑ¹ºÏ¸ñÂÊÊý¾Ý */
+/* ?æ´¢????15?ÕµÄµ?Ñ¹?Ï¸??????? */
 volatile struct VoltagePassRate voltagePassRate[15];
 volatile unsigned char voltagePassRateIndex = 0;
 
@@ -228,10 +228,10 @@ inline unsigned char clearBit(unsigned char d,unsigned char n) {
 	return (d & (~(1<<n)));
 }
 
-/* ½«Ê®½øÖÆÊý×ª»¯³ÉÊ®Áù½øÖÆÊý(12 -> 0x12 = 18) */
+/* ??Ê®??????×ª????Ê®????????(12 -> 0x12 = 18) */
 inline unsigned char DEC2HEX(unsigned int d) {
 	unsigned char res;
-	if(d > 100) return 0xFF;//·¢Éú´íÎó!
+	if(d > 100) return 0xFF;//????????!
 	res = ((d / 10) * 16) + d % 10;
 	return res;
 }
@@ -452,15 +452,15 @@ void StoreZigbeeReceivedData() {
 	unsigned int id,Current,Voltage;
 	unsigned char DataType;
 	
-	/* Step 1: ¶ÁÈ¡ZigBeeÊý¾Ý°üÖÐÊý¾Ý */
+	/* Step 1: ??È¡ZigBee???Ý°??????? */
 	id = recBuffer_Zigbee[0];//router id
 	Current = recBuffer_Zigbee[1] * 256 + recBuffer_Zigbee[2];
 	Voltage = recBuffer_Zigbee[3] * 256 + recBuffer_Zigbee[4];
 	DataType = recBuffer_Zigbee[Zigbee_PackLen - 2];//Zigbee_PackLen = 7
 	
-	/* Step 2: ´æ´¢¹ÊÕÏÊý¾Ýµ½ÄÚ²¿EEPROM(ÕÕ¾É) */
+	/* Step 2: ?æ´¢???????Ýµ??Ú²?EEPROM(?Õ¾?) */
 	if(DataType == 0x00 || DataType == 0x01) {
-	    /* ¹ÊÕÏÊý¾Ý»òÕßÂ©µçÁ÷³¬ÏÞÊý¾Ý ´æµ½Íâ²¿EEPROM */
+	    /* ???????Ý»???Â©???????????? ?æµ½?â²¿EEPROM */
         /* Step 2.1: Load data into W_EEprom_Array */
         for(i = 0;i < (Zigbee_PackLen - 2);i++)
         {
@@ -484,27 +484,27 @@ void StoreZigbeeReceivedData() {
         for(i = (Zigbee_PackLen + 5);i < BlockLength;i++){
             W_EEprom_Array[i] = 0;//the remaining data byte are set to zero
         }
-        /* Step 2.4: ½«Êý¾Ý´æ´¢µ½Íâ²¿EEPROM */
+        /* Step 2.4: ?????Ý´æ´¢???â²¿EEPROM */
         LastUnReadByteAddr = 256*ReadEEPROM(AT24C128,21);//High Byte of Address
         LastUnReadByteAddr += ReadEEPROM(AT24C128,22);//Low Byte of Address
-        /* ½«Êý¾ÝÐ´Èëµ½Íâ²¿EEPROM */ 
+        /* ??????Ð´?ëµ½?â²¿EEPROM */ 
         for(i = 0;i < BlockLength;i++) {
             WriteEEPROMStatus = WriteEEPROM(AT24C128,LastUnReadByteAddr + i + 1,W_EEprom_Array[i]);
             _delay_ms(1);//delay 1 mili-second
         }
-        /* ¸ü¸ÄµØÖ· */
+        /* ???Äµ?Ö· */
         LastUnReadByteAddr += BlockLength;
-        /* ´¦ÀíµØÖ·ÏòÉÏÔ½½ç */
+        /* ??????Ö·????Ô½?? */
         if(LastUnReadByteAddr >= EEpromSize - 1) {//maximum address : EEpromSize - 1
             LastUnReadByteAddr = ReservedByteNum - 1;//pull the address back to initial address
             EEpromFull = 1;//now EEProm are full
             WriteEEPROM(AT24C128,23,EEpromFull);
         }
-        /* ´¦ÀíµØÖ·ÏòÏÂÔ½½ç */
+        /* ??????Ö·????Ô½?? */
 	    else if(LastUnReadByteAddr < ReservedByteNum-1) LastUnReadByteAddr = ReservedByteNum-1;
-        /* ¶ÁÈ¡Íâ²¿EEPROMÂúÁË */
+        /* ??È¡?â²¿EEPROM???? */
         EEpromFull = ReadEEPROM(AT24C128,23);
-        /* Èç¹ûÂúÁË¾ÍÒªÐÞ¸ÄÆäËûµØÖ·µÄÖµÁË */
+        /* ???????Ë¾?Òª?Þ¸???????Ö·??Öµ?? */
         if(EEpromFull == 1) {
             // now,we entering a circle storage state.
             //	and these two address are neighbour in the following part.
@@ -530,35 +530,35 @@ void StoreZigbeeReceivedData() {
         //	Write new LastUnReadByteAddr to EEPROM
         WriteEEPROM(AT24C128,21,LastUnReadByteAddr>>8);//write back High Byte
         WriteEEPROM(AT24C128,22,LastUnReadByteAddr&0xFF);//write back Low Byte
-        /* Step 2.5: ½«Êý¾Ý´æ·Åµ½ÏàÓ¦±äÁ¿ */
+        /* Step 2.5: ?????Ý´??Åµ???Ó¦???? */
         if((Current / 100) >= ParameterIdentifier.CurrentThreshold) {
-            /* µ±ÈÕ´ÎÊý¼ÓÒ» */
+            /* ???Õ´?????Ò» */
             if(CurrentDataBlock_1.currentLeakTimes < 0xFFFF)
                 CurrentDataBlock_1.currentLeakTimes += 1;
-            /* ±£Áô×î´óµÄÂ©µçÁ÷Öµ */
+            /* ??????????Â©????Öµ */
             if(Current > CurrentDataBlock_1.maxCurrent){
                 CurrentDataBlock_1.maxCurrent = Current / 100;
             } if(Voltage > voltagePassRate[voltagePassRateIndex].maxVoltage) {
-                /* ¸üÐÂµ±ÈÕ×î´óµçÑ¹¼°Æä·¢ÉúÊ±¼ä */
+                /* ???Âµ?????????Ñ¹???ä·¢??Ê±?? */
                 voltagePassRate[voltagePassRateIndex].maxVoltage = Voltage;
                 voltagePassRate[voltagePassRateIndex].maxVoltageOccureTime.month = CurrentTime[MONTH];
                 voltagePassRate[voltagePassRateIndex].maxVoltageOccureTime.date = CurrentTime[DATE];
                 voltagePassRate[voltagePassRateIndex].maxVoltageOccureTime.hour = CurrentTime[HOUR];
                 voltagePassRate[voltagePassRateIndex].maxVoltageOccureTime.minute = CurrentTime[MINUTE];
             } if(Voltage < voltagePassRate[voltagePassRateIndex].minVoltage) {
-                /* ¸üÐÂµ±ÈÕ×îÐ¡µçÑ¹¼°Æä·¢ÉúÊ±¼ä */
+                /* ???Âµ?????Ð¡??Ñ¹???ä·¢??Ê±?? */
                 voltagePassRate[voltagePassRateIndex].minVoltage = Voltage;
                 voltagePassRate[voltagePassRateIndex].minVoltageOccureTime.month = CurrentTime[MONTH];
                 voltagePassRate[voltagePassRateIndex].minVoltageOccureTime.date = CurrentTime[DATE];
                 voltagePassRate[voltagePassRateIndex].minVoltageOccureTime.hour = CurrentTime[HOUR];
                 voltagePassRate[voltagePassRateIndex].minVoltageOccureTime.minute = CurrentTime[MINUTE];
             }
-            /* ×Ü´ÎÊý¼Ó1 */
+            /* ?Ü´?????1 */
             if(HistoryProblem.CurrentProblemTime_LSB >= 9999) {
                 HistoryProblem.CurrentProblemTime_MSB += 1;
                 HistoryProblem.CurrentProblemTime_LSB = 0;
             } else HistoryProblem.CurrentProblemTime_LSB += 1;
-            /* ÀúÊ·µçÁ÷¹ÊÕÏÊý¾Ý±£´æµ½ÄÚ´æÖÐ */
+            /* ??Ê·???????????Ý±??æµ½?Ú´??? */
             HistoryProblem.currentRecord[HistoryProblem.currentRecordIndex].sYear = CurrentTime[YEAR];
             HistoryProblem.currentRecord[HistoryProblem.currentRecordIndex].sMonth = CurrentTime[MONTH];
             HistoryProblem.currentRecord[HistoryProblem.currentRecordIndex].sDate = CurrentTime[DATE];
@@ -574,15 +574,15 @@ void StoreZigbeeReceivedData() {
             }
 
         } else if((Voltage / 100) == 0) {
-            /* ·ÀÖ¹Òç³ö */
+            /* ??Ö¹???? */
             if(CurrentDataBlock_1.todayPowerDownTimes < 0xFFFF) 
                 CurrentDataBlock_1.todayPowerDownTimes += 1;
-            /* ×Ü´ÎÊý¼Ó1 */
-            if(HistoryProblem.VoltageProblemTime_LSB >= 9999) {//´æµÄÊÇBCDÂë
+            /* ?Ü´?????1 */
+            if(HistoryProblem.VoltageProblemTime_LSB >= 9999) {//??????BCD??
                 HistoryProblem.VoltageProblemTime_MSB += 1;
                 HistoryProblem.VoltageProblemTime_LSB = 0;
             } else HistoryProblem.VoltageProblemTime_LSB += 1;
-            /* ÀúÊ·µçÑ¹¹ÊÕÏÊý¾Ý±£´æµ½ÄÚ´æ */
+            /* ??Ê·??Ñ¹???????Ý±??æµ½?Ú´? */
             HistoryProblem.voltageRecord[HistoryProblem.voltageRecordIndex].sYear = CurrentTime[YEAR];
             HistoryProblem.voltageRecord[HistoryProblem.voltageRecordIndex].sMonth = CurrentTime[MONTH];
             HistoryProblem.voltageRecord[HistoryProblem.voltageRecordIndex].sDate = CurrentTime[DATE];
@@ -597,9 +597,9 @@ void StoreZigbeeReceivedData() {
             }
         }
 	}
-    /* µçÑ¹¼à²âÊý¾Ý´æ´¢µ½ÄÚ²¿EEPROM(¹²2kB),Ö»´æ´¢2ÌìµÄÊý¾Ý */
+    /* ??Ñ¹???????Ý´æ´¢???Ú²?EEPROM(??2kB),Ö»?æ´¢2???????? */
     else if(DataType == 0x03){
-        /* Ç°ÌáÊÇÃ¿15·ÖÖÓÒ»´Î¼à¿ØÊý¾Ý */
+        /* Ç°????Ã¿15????Ò»?Î¼??????? */
         eeprom_update_word((uint16_t *)monitorIndex,Current);
         monitorIndex += 2;
         eeprom_update_word((uint16_t *)monitorIndex,Voltage);
@@ -616,7 +616,7 @@ void StoreZigbeeReceivedData() {
 	
 }
 /* 
-** ¶ÏµçºóÖØÐÂÉÏµç¾Í»á¶ÁÈ¡Ô­À´µÄÅäÖÃ²ÎÊý(¶ÔÓÚÄ¿Ç°µÄ485×ÜÏßÃ»ÓÐ×÷ÓÃ)
+** ?Ïµ????????Ïµ??Í»???È¡Ô­???????Ã²???(????Ä¿Ç°??485????Ã»??????)
 */
 void CheckParameter() {
     /* address 10 is the flag byte , indicate that if we already write on-chip eeprom */
@@ -631,13 +631,13 @@ void CheckParameter() {
         RetransmitTimeRatio = eeprom_read_byte((uint8_t *)6);
     }
 }
-/* »ñÈ¡ÊµÊ±µçÑ¹»òµçÁ÷Êý¾Ý */
+/* ??È¡ÊµÊ±??Ñ¹?????????? */
 unsigned int getRightNowData(unsigned char type,unsigned char id){
     unsigned int Current = 0,Voltage = 0;
     unsigned char i;
 
     RealTimeQuery = 1;
-    /* Èç¹û»º´æÁËÊý¾Ý,Ö±½ÓÈ¡³ö»º´æÊý¾Ý */
+    /* ??????????????,Ö±??È¡?????????? */
     if(cache_ttl[id] > 0) {
         Current = cache_current[id];
         Voltage = cache_voltage[id];
@@ -658,9 +658,9 @@ unsigned int getRightNowData(unsigned char type,unsigned char id){
             recFlag_Zigbee = 0;
             /* --- Step 1: Send ACK_Zigbee to ZigBee router --- */
             /* then router stop send data to coordinator */
-            ACK_Zigbee[1] = recBuffer_Zigbee[0];//router device id
-            ACK_Zigbee[2] = recBuffer_Zigbee[1];//leak current high byte
-            ACK_Zigbee[3] = recBuffer_Zigbee[2];//leak current low byte
+            ACK_Zigbee[2] = recBuffer_Zigbee[0];//router device id
+            ACK_Zigbee[3] = recBuffer_Zigbee[1];//leak current high byte
+            ACK_Zigbee[4] = recBuffer_Zigbee[2];//leak current low byte
             for(i = 0;i < Zigbee_AckLen;i++)
             {
                 USART1_Send_Byte(ACK_Zigbee[i]);
@@ -677,7 +677,7 @@ unsigned int getRightNowData(unsigned char type,unsigned char id){
         return Current;
     } else if(type == 2) {
         return Voltage;
-    } else return 0;//Ä¬ÈÏ·µ»ØÖµ
+    } else return 0;//Ä¬?Ï·???Öµ
 }
 /*
 ** Reply Four 0xFE
@@ -698,60 +698,60 @@ void ReadDataPackage(unsigned char ControlByte){
     volatile unsigned char replySize = 0;
     volatile unsigned int temp,startAddr;
     /*
-     * 0x91 - no continue data(ÔÝÊ±Ö»¿¼ÂÇÃ»ÓÐºóÐø°üµÄÇé¿ö)
+     * 0x91 - no continue data(??Ê±Ö»????Ã»?Ðº???????????)
      * 0xB1 - has continue data(not finish yet)
-     * ¿ØÖÆ×Ö½Ú¼Ó0x80¾ÍÐÐÁË(Õý³£»Ø¸´)
+     * ?????Ö½Ú¼?0x80??????(?????Ø¸?)
      */
 
     /* Get idetifier - Command also*/
     for(i = 0;i < sizeof(identify);++i){
-        /* ´ÓµÍÎ»µ½¸ßÎ»ÅÅÁÐ */
+        /* ?Óµ?Î»????Î»???? */
         identify[i] = recData_485[sizeof(myaddr) + 3 + i] - DecodeByte;
     }
     
-    /* µÚÒ»ÖÖÀàÐÍÊý¾Ý±êÖ¾ */
+    /* ??Ò»?????????Ý±?Ö¾ */
     if(identify[3] == 0x00 && identify[2] == 0x01) {
-        /* »Ø¸´µ±Ç°Ê£ÓàµçÁ÷Öµ */
+        /* ?Ø¸???Ç°Ê£??????Öµ */
         if(identify[1] == 0x00) {
             /* Now we just Monitor a Value */
             ControlByte += 0x80;
-            /* ´Ó²É¼¯Æ÷»ñÈ¡µ±Ç°µçÁ÷ */
+            /* ?Ó²É¼?????È¡??Ç°???? */
             if(identify[0] == 0x00) {
                 CurrentDataBlock_1.thisCurrent = getRightNowData(0x01,MonitorVoltageID);
             } else {
                 CurrentDataBlock_1.thisCurrent = getRightNowData(0x01,identify[0]);
             }
-            replyBuffer_485[0] = 0x00;//LSBÐ¡Êýµã²¿·ÖÄ¬ÈÏÎª0
+            replyBuffer_485[0] = 0x00;//LSBÐ¡???ã²¿??Ä¬??Îª0
             replyBuffer_485[1] = DEC2HEX(CurrentDataBlock_1.thisCurrent % 100);
             replyBuffer_485[2] = DEC2HEX((CurrentDataBlock_1.thisCurrent / 100) % 100);
             replyBuffer_485[3] = DEC2HEX(CurrentDataBlock_1.thisCurrent / 10000);//MSB
             replySize = 4;
         }
-        /* »Ø¸´µ±ÌìÊ£ÓàµçÁ÷³¬ÏÞ´ÎÊý */
+        /* ?Ø¸?????Ê£?????????Þ´??? */
         else if(identify[1] == 0x01 && identify[0] == 0x00) {
             /* Now we just Monitor a Value */
             ControlByte += 0x80;
-            replyBuffer_485[0] = 0x00;//LSBÐ¡Êý²¿·ÖÄ¬ÈÏÎª0
+            replyBuffer_485[0] = 0x00;//LSBÐ¡??????Ä¬??Îª0
             replyBuffer_485[1] = DEC2HEX(CurrentDataBlock_1.currentLeakTimes % 100);
             replyBuffer_485[2] = DEC2HEX((CurrentDataBlock_1.currentLeakTimes / 100) % 100);
             replyBuffer_485[3] = DEC2HEX(CurrentDataBlock_1.currentLeakTimes / 10000);//MSB
             replySize = 4;
         }
-        /* »Ø¸´µ±Ìì×î´óÊ£ÓàµçÁ÷Öµ */
+        /* ?Ø¸?????????Ê£??????Öµ */
         else if(identify[1] == 0x02 && identify[0] == 0x00) {
             ControlByte += 0x80;
-            replyBuffer_485[0] = 0x00;//LSBÐ¡Êý²¿·ÖÄ¬ÈÏÎª0
+            replyBuffer_485[0] = 0x00;//LSBÐ¡??????Ä¬??Îª0
             replyBuffer_485[1] = DEC2HEX(CurrentDataBlock_1.maxCurrent % 100);
             replyBuffer_485[2] = DEC2HEX((CurrentDataBlock_1.maxCurrent / 100) % 100);
             replyBuffer_485[3] = DEC2HEX(CurrentDataBlock_1.maxCurrent / 10000);//MSB
             replySize = 4;
 
         } 
-        /* »Ø¸´µ±ÌìÆ½¾ùÊ£ÓàµçÁ÷ -- Êý¾ÝÎÞÒâÒå*/
+        /* ?Ø¸?????Æ½??Ê£?????? -- ??????????*/
         else if(identify[1] == 0x03 && identify[0] == 0x00) {
 			/*
             ControlByte += 0x80;
-            replyBuffer_485[0] = 0x00;//LSBÐ¡Êý²¿·ÖÄ¬ÈÏÎª0
+            replyBuffer_485[0] = 0x00;//LSBÐ¡??????Ä¬??Îª0
             replyBuffer_485[1] = DEC2HEX(CurrentDataBlock_1.avgCurrent % 100);
             replyBuffer_485[2] = DEC2HEX((CurrentDataBlock_1.avgCurrent / 100) % 100);
             replyBuffer_485[3] = DEC2HEX(CurrentDataBlock_1.avgCurrent / 10000);//MSB
@@ -760,7 +760,7 @@ void ReadDataPackage(unsigned char ControlByte){
 			ControlByte += 0xC0;
 			return;
         }
-        /* »Ø¸´µ±Ììµôµã´ÎÊý */
+        /* ?Ø¸????????????? */
         else if(identify[1] == 0x04 && identify[0] == 0x00) {
             ControlByte += 0x80;
             replyBuffer_485[0] = 0x00;//LSB
@@ -769,58 +769,58 @@ void ReadDataPackage(unsigned char ControlByte){
             replyBuffer_485[3] = DEC2HEX(CurrentDataBlock_1.todayPowerDownTimes / 10000);//MSB
             replySize = 4;
         }
-        /* »Ø¸´Ç°ÃæËùÓÐÊý¾Ý(4 * 64 = 256 byte) */
+        /* ?Ø¸?Ç°??????????(4 * 64 = 256 byte) */
         else if(identify[1] == 0xFF && identify[0] == 0x00) {
             ControlByte += 0x80;
-            /* ÔÝÊ±²»ÊµÏÖ */
+            /* ??Ê±??Êµ?? */
         }
     }
     
-    /* µÚ¶þÖÖÀàÐÍÊý¾Ý±êÖ¾(µçÑ¹Ïà¹ØµÄ)£¬²¢ÈëÁËµÚÁùÖÖÀàÐÍµÄÊý¾ÝÁË */
+    /* ?Ú¶??????????Ý±?Ö¾(??Ñ¹???Øµ?)???????Ëµ????????Íµ??????? */
     if(identify[3] == 0x03){
-        /* Ê£ÓàµçÁ÷³¬ÏÞ×Ü´ÎÊýºÍ×ÜÊ±¼ä */
+        /* Ê£???????????Ü´???????Ê±?? */
         if(identify[2] == 0x05 && identify[1] == 0x00 && identify[0] == 0x00){
             ControlByte += 0x80;
-            /* ×Ü´ÎÊý */
+            /* ?Ü´??? */
             temp = HistoryProblem.VoltageProblemTime_LSB;
             replyBuffer_485[0] = DEC2HEX(temp % 100);//LSB
             replyBuffer_485[1] = DEC2HEX((temp / 100) % 100);
             replyBuffer_485[2] = DEC2HEX(HistoryProblem.VoltageProblemTime_MSB);
-            /* ±£Áô×Ö½Ú */
+            /* ?????Ö½? */
             replyBuffer_485[3] = 0x00;
             replyBuffer_485[4] = 0x00;
             replyBuffer_485[5] = 0x00;//MSB
             replySize = 6;
         }
-        /* ÉÏ10´ÎÊ£ÓàµçÁ÷³¬ÏÞ±¨¾¯ÊÂ¼þ¼ÇÂ¼(Êý¾Ý¿ÉÒÔ·Åµ½Ò»¸ö½á¹¹ÌåÖÐ) */
+        /* ??10??Ê£?????????Þ±????Â¼???Â¼(???Ý¿??Ô·Åµ?Ò»???á¹¹????) */
         else if (identify[2] == 0x05 && identify[1] == 0x00) {
             if(identify[0] <= 0x0A && identify[0] >= 0x01) {
                 ControlByte += 0x80;
-                /* ¸ù¾Ýidentify[0]¸ø³öµÚÒ»µ½µÚÊ®¸ö¼ÇÂ¼ */
-                /* ÖÕÖ¹Ê±¼ä */
+                /* ????identify[0]??????Ò»????Ê®????Â¼ */
+                /* ??Ö¹Ê±?? */
                 if(identify[0] > HistoryProblem.currentRecordIndex) {
-                    //temp ÊÇÊý×éµÄË÷Òý
+                    //temp ????????????
                     temp = HISTORY_CACHE_SIZE - (identify[0] - HistoryProblem.currentRecordIndex);
                 } else {
                     temp = HistoryProblem.currentRecordIndex - identify[0];
                 }
-                replyBuffer_485[0] = HistoryProblem.currentRecord[temp].sSecond;//Ãë
-                replyBuffer_485[1] = HistoryProblem.currentRecord[temp].sMinute;//·Ö
+                replyBuffer_485[0] = HistoryProblem.currentRecord[temp].sSecond;//??
+                replyBuffer_485[1] = HistoryProblem.currentRecord[temp].sMinute;//??
                 replyBuffer_485[2] = HistoryProblem.currentRecord[temp].sHour;//Ê±
-                replyBuffer_485[3] = HistoryProblem.currentRecord[temp].sDate;//ÈÕ
-                replyBuffer_485[4] = HistoryProblem.currentRecord[temp].sMonth;//ÔÂ
-                replyBuffer_485[5] = HistoryProblem.currentRecord[temp].sYear;//Äê
-                /* Â©µçÁ÷×î´óÖµ */
+                replyBuffer_485[3] = HistoryProblem.currentRecord[temp].sDate;//??
+                replyBuffer_485[4] = HistoryProblem.currentRecord[temp].sMonth;//??
+                replyBuffer_485[5] = HistoryProblem.currentRecord[temp].sYear;//??
+                /* Â©????????Öµ */
                 replyBuffer_485[6] = 0x00;//
                 replyBuffer_485[7] = DEC2HEX((HistoryProblem.currentRecord[temp].maxCurrent % 10) * 10);//
                 replyBuffer_485[8] = DEC2HEX(HistoryProblem.currentRecord[temp].maxCurrent / 10);//
-                /* ÆðÊ¼Ê±¼ä */
-                replyBuffer_485[9] = HistoryProblem.currentRecord[temp].sSecond;//Ãë
-                replyBuffer_485[10] = HistoryProblem.currentRecord[temp].sMinute;//·Ö
+                /* ??Ê¼Ê±?? */
+                replyBuffer_485[9] = HistoryProblem.currentRecord[temp].sSecond;//??
+                replyBuffer_485[10] = HistoryProblem.currentRecord[temp].sMinute;//??
                 replyBuffer_485[11] = HistoryProblem.currentRecord[temp].sHour;//Ê±
-                replyBuffer_485[12] = HistoryProblem.currentRecord[temp].sDate;//ÈÕ
-                replyBuffer_485[13] = HistoryProblem.currentRecord[temp].sMonth;//ÔÂ
-                replyBuffer_485[14] = HistoryProblem.currentRecord[temp].sYear;//Äê
+                replyBuffer_485[12] = HistoryProblem.currentRecord[temp].sDate;//??
+                replyBuffer_485[13] = HistoryProblem.currentRecord[temp].sMonth;//??
+                replyBuffer_485[14] = HistoryProblem.currentRecord[temp].sYear;//??
 
                 replySize = 15;
             } else {
@@ -829,40 +829,40 @@ void ReadDataPackage(unsigned char ControlByte){
             }
         }
         
-        /* Ê£ÓàµçÁ÷²ÉÑù»ØÂ·¶ÌÏß×Ü´ÎÊý */
+        /* Ê£????????????Â·?????Ü´??? */
         else if (identify[2] == 0x06 && identify[1] == 0x00 && identify[0] == 0x00) {
             ControlByte += 0x80;
-            /* ×Ü´ÎÊý */
+            /* ?Ü´??? */
             temp = HistoryProblem.CurrentProblemTime_LSB;
             replyBuffer_485[0] = DEC2HEX(temp % 100);
             replyBuffer_485[1] = DEC2HEX((temp / 100) % 100);
             replyBuffer_485[2] = DEC2HEX(HistoryProblem.CurrentProblemTime_MSB);
-            /* ±£Áô×Ö½Ú */
+            /* ?????Ö½? */
             replyBuffer_485[3] = 0x00;
             replyBuffer_485[4] = 0x00;
             replyBuffer_485[5] = 0x00;
 
             replySize = 6;
         }
-        /* ÉÏ(×î½ü)10´Î²ÉÑù»ØÂ·¶ÏÏßÊÂ¼þ¼ÇÂ¼(Êý¾Ý¿ÉÒÔ·Åµ½Ò»¸ö½á¹¹ÌåÖÐ) */
+        /* ??(????)10?Î²?????Â·?????Â¼???Â¼(???Ý¿??Ô·Åµ?Ò»???á¹¹????) */
         else if (identify[2] == 0x06 && identify[1] == 0x00) {
             if(identify[0] <= 0x0A && identify[0] >= 0x01) {
                 ControlByte += 0x80;
-                /* ¸ù¾Ýidentify[0]¸ø³öµÚÒ»µ½µÚÊ®¸ö¼ÇÂ¼ */
-                /* ÖÕÖ¹Ê±¼ä */
-                replyBuffer_485[0] = 0x00;//Ãë
-                replyBuffer_485[1] = 0x00;//·Ö
+                /* ????identify[0]??????Ò»????Ê®????Â¼ */
+                /* ??Ö¹Ê±?? */
+                replyBuffer_485[0] = 0x00;//??
+                replyBuffer_485[1] = 0x00;//??
                 replyBuffer_485[2] = 0x12;//Ê±
-                replyBuffer_485[3] = 0x18;//ÈÕ
-                replyBuffer_485[4] = 0x01;//ÔÂ
-                replyBuffer_485[5] = 0x16;//Äê
-                /* ÆðÊ¼Ê±¼ä */
-                replyBuffer_485[6] = 0x00;//Ãë
-                replyBuffer_485[7] = 0x00;//·Ö
+                replyBuffer_485[3] = 0x18;//??
+                replyBuffer_485[4] = 0x01;//??
+                replyBuffer_485[5] = 0x16;//??
+                /* ??Ê¼Ê±?? */
+                replyBuffer_485[6] = 0x00;//??
+                replyBuffer_485[7] = 0x00;//??
                 replyBuffer_485[8] = 0x12;//Ê±
-                replyBuffer_485[9] = 0x18;//ÈÕ
-                replyBuffer_485[10] = 0x01;//ÔÂ
-                replyBuffer_485[11] = 0x16;//Äê
+                replyBuffer_485[9] = 0x18;//??
+                replyBuffer_485[10] = 0x01;//??
+                replyBuffer_485[11] = 0x16;//??
 
                 replySize = 12;
             } else {
@@ -870,7 +870,7 @@ void ReadDataPackage(unsigned char ControlByte){
                 return;
             }
         }
-        /* µôµç×Ü´ÎÊý */
+        /* ?????Ü´??? */
         else if (identify[2] == 0x11 && identify[1] == 0x00 && identify[0] == 0x00){
             ControlByte += 0x80;
 
@@ -879,37 +879,37 @@ void ReadDataPackage(unsigned char ControlByte){
             replyBuffer_485[2] = DEC2HEX(HistoryProblem.VoltageProblemTime_MSB);
             replySize = 3;
         }
-        /* µôµçÊÂ¼þ¼ÇÂ¼ */
+        /* ?????Â¼???Â¼ */
         else if(identify[2] == 0x11 && identify[1] == 0x00) {
             if(identify[0] <= 0x0A && identify[0] >= 0x01) {
                 ControlByte += 0x80;
-                /* ÖÕÖ¹Ê±¼ä */
+                /* ??Ö¹Ê±?? */
                 if(identify[0] > HistoryProblem.voltageRecordIndex) {
                     temp = HISTORY_CACHE_SIZE - (identify[0] - HistoryProblem.voltageRecordIndex);
                 } else {
                     temp = HistoryProblem.voltageRecordIndex - identify[0];
                 }
-                replyBuffer_485[0] = HistoryProblem.voltageRecord[temp].sSecond;//Ãë
-                replyBuffer_485[1] = HistoryProblem.voltageRecord[temp].sMinute;//·Ö
+                replyBuffer_485[0] = HistoryProblem.voltageRecord[temp].sSecond;//??
+                replyBuffer_485[1] = HistoryProblem.voltageRecord[temp].sMinute;//??
                 replyBuffer_485[2] = HistoryProblem.voltageRecord[temp].sHour;//Ê±
-                replyBuffer_485[3] = HistoryProblem.voltageRecord[temp].sDate;//ÈÕ
-                replyBuffer_485[4] = HistoryProblem.voltageRecord[temp].sMonth;//ÔÂ
-                replyBuffer_485[5] = HistoryProblem.voltageRecord[temp].sYear;//Äê
-                /* ÆðÊ¼Ê±¼ä */
-                replyBuffer_485[6] = HistoryProblem.voltageRecord[temp].sSecond;//Ãë
-                replyBuffer_485[7] = HistoryProblem.voltageRecord[temp].sMinute;//·Ö
+                replyBuffer_485[3] = HistoryProblem.voltageRecord[temp].sDate;//??
+                replyBuffer_485[4] = HistoryProblem.voltageRecord[temp].sMonth;//??
+                replyBuffer_485[5] = HistoryProblem.voltageRecord[temp].sYear;//??
+                /* ??Ê¼Ê±?? */
+                replyBuffer_485[6] = HistoryProblem.voltageRecord[temp].sSecond;//??
+                replyBuffer_485[7] = HistoryProblem.voltageRecord[temp].sMinute;//??
                 replyBuffer_485[8] = HistoryProblem.voltageRecord[temp].sHour;//Ê±
-                replyBuffer_485[9] = HistoryProblem.voltageRecord[temp].sDate;//ÈÕ
-                replyBuffer_485[10] = HistoryProblem.voltageRecord[temp].sMonth;//ÔÂ
-                replyBuffer_485[11] = HistoryProblem.voltageRecord[temp].sYear;//Äê
+                replyBuffer_485[9] = HistoryProblem.voltageRecord[temp].sDate;//??
+                replyBuffer_485[10] = HistoryProblem.voltageRecord[temp].sMonth;//??
+                replyBuffer_485[11] = HistoryProblem.voltageRecord[temp].sYear;//??
 
 
                 replySize = 12;
             }
         }
-        /* µçÑ¹ºÏ¸ñÂÊÍ³¼ÆÊý¾Ý page 42*/
+        /* ??Ñ¹?Ï¸???Í³?????? page 42*/
         else if(identify[2] == 0x10 && (identify[1] == 0x00 || identify[1] == 0x01 || identify[1] == 0x02 || identify[1] == 0x03)) {
-            /* ±¾ÈÕÊý¾Ý£¬ÒÔ¼°ÉÏÊ®¶þÈÕÊý¾Ý */
+            /* ???????Ý£??Ô¼???Ê®???????? */
             if(identify[0] >= 0x00 && identify[0] <= 0x0A) {
                 ControlByte += 0x80;
                 if(identify[0] > voltagePassRateIndex) {
@@ -917,54 +917,54 @@ void ReadDataPackage(unsigned char ControlByte){
                 } else {
                     temp = voltagePassRateIndex - identify[0];
                 }
-                /* µçÑ¹¼à²âÊ±¼ä */
+                /* ??Ñ¹????Ê±?? */
                 replyBuffer_485[0] = 0x00;
                 replyBuffer_485[1] = 0x32;
                 replyBuffer_485[2] = 0x04;
-                /* µçÑ¹ºÏ¸ñÂÊ */
+                /* ??Ñ¹?Ï¸??? */
                 replyBuffer_485[3] = 0x00;
                 replyBuffer_485[4] = 0x90;
                 replyBuffer_485[5] = 0x00;
-                /* µçÑ¹³¬ÏÞÂÊ */
+                /* ??Ñ¹?????? */
                 replyBuffer_485[6] = 0x00;
                 replyBuffer_485[7] = 0x10;
                 replyBuffer_485[8] = 0x00;
-                /* µçÑ¹³¬ÉÏÏÞÊ±¼ä */
+                /* ??Ñ¹??????Ê±?? */
                 replyBuffer_485[9] = 0x00;
                 replyBuffer_485[10] = 0x30;
                 replyBuffer_485[11] = 0x00;
-                /* µçÑ¹³¬ÏÂÏÞÊ±¼ä */
+                /* ??Ñ¹??????Ê±?? */
                 replyBuffer_485[12] = 0x00;
                 replyBuffer_485[13] = 0x30;
                 replyBuffer_485[14] = 0x00;
-                /* ×î¸ßµçÑ¹ */
+                /* ???ßµ?Ñ¹ */
                 replyBuffer_485[15] = DEC2HEX((voltagePassRate[temp].maxVoltage % 10) * 10);
                 replyBuffer_485[16] = DEC2HEX(voltagePassRate[temp].maxVoltage / 10);
-                /* ×î¸ßµçÑ¹³öÏÖÊ±¼ä */
-                replyBuffer_485[17] = voltagePassRate[temp].maxVoltageOccureTime.minute;//·Ö
+                /* ???ßµ?Ñ¹????Ê±?? */
+                replyBuffer_485[17] = voltagePassRate[temp].maxVoltageOccureTime.minute;//??
                 replyBuffer_485[18] = voltagePassRate[temp].maxVoltageOccureTime.hour;//Ê±
-                replyBuffer_485[19] = voltagePassRate[temp].maxVoltageOccureTime.date;//ÈÕ
-                replyBuffer_485[20] = voltagePassRate[temp].maxVoltageOccureTime.month;//ÔÂ
-                /* ×îµÍµçÑ¹ */
+                replyBuffer_485[19] = voltagePassRate[temp].maxVoltageOccureTime.date;//??
+                replyBuffer_485[20] = voltagePassRate[temp].maxVoltageOccureTime.month;//??
+                /* ???Íµ?Ñ¹ */
                 replyBuffer_485[21] = DEC2HEX((voltagePassRate[temp].minVoltage % 10) * 10);
                 replyBuffer_485[22] = DEC2HEX(voltagePassRate[temp].minVoltage / 10);
-                /* ×îµÍµçÑ¹³öÏÖÊ±¼ä */
-                replyBuffer_485[23] = voltagePassRate[temp].minVoltageOccureTime.minute;//·Ö
+                /* ???Íµ?Ñ¹????Ê±?? */
+                replyBuffer_485[23] = voltagePassRate[temp].minVoltageOccureTime.minute;//??
                 replyBuffer_485[24] = voltagePassRate[temp].minVoltageOccureTime.hour;//Ê±
-                replyBuffer_485[25] = voltagePassRate[temp].minVoltageOccureTime.date;//ÈÕ
-                replyBuffer_485[26] = voltagePassRate[temp].minVoltageOccureTime.month;//ÔÂ
+                replyBuffer_485[25] = voltagePassRate[temp].minVoltageOccureTime.date;//??
+                replyBuffer_485[26] = voltagePassRate[temp].minVoltageOccureTime.month;//??
 
                 replySize = 27;
             }
         }
     }
 
-    /* µÚÈýÖÖÀàÐÍÊý¾Ý±êÖ¾ */
+    /* ?????????????Ý±?Ö¾ */
     if(identify[3] == 0x04) {
         if(identify[2] == 0x00 && identify[1] == 0x01 && identify[0] == 0x01) {
-            /* »Ø¸´ÄêÔÂÈÕÐÇÆÚ */
+            /* ?Ø¸??????????? */
             ControlByte += 0x80;
-            /* ¶ÁÈ¡³öÊ±¼ä */
+            /* ??È¡??Ê±?? */
             Read_Current_Time(DS1307,CurrentTime,7);
             replyBuffer_485[0] = CurrentTime[WEEKDAY];
             USART0_Send_Byte(CurrentTime[WEEKDAY]);
@@ -976,17 +976,17 @@ void ReadDataPackage(unsigned char ControlByte){
             USART0_Send_Byte(CurrentTime[YEAR]);
             replySize = 4;
         }
-        /* »Ø¸´Ê±·ÖÃë */
+        /* ?Ø¸?Ê±???? */
         else if(identify[2] == 0x00 && identify[1] == 0x01 && identify[0] == 0x02) {
             ControlByte += 0x80;
-            /* ¶ÁÈ¡³öÊ±¼ä */
+            /* ??È¡??Ê±?? */
             Read_Current_Time(DS1307,CurrentTime,7);
             replyBuffer_485[0] = CurrentTime[SECOND];
             replyBuffer_485[1] = CurrentTime[MINUTE];
             replyBuffer_485[2] = CurrentTime[HOUR];
             replySize = 3;
         }
-        /* »Ø¸´Í¨ÐÅµØÖ· */
+        /* ?Ø¸?Í¨?Åµ?Ö· */
         else if(identify[2] == 0x00 && identify[1] == 0x04 && identify[0] == 0x01) {
             ControlByte += 0x80;
             for(i = 0;i < sizeof(myaddr);++i) {
@@ -994,7 +994,7 @@ void ReadDataPackage(unsigned char ControlByte){
             }
             replySize = sizeof(myaddr);
         }
-        /* »Ø¸´Ê£ÓàµçÁ÷³¬ÏÞãÐÖµ */
+        /* ?Ø¸?Ê£????????????Öµ */
         else if(identify[2] == 0x00 && identify[1] == 0x0E && identify[0] == 0x01) {
             ControlByte += 0x80;
             replyBuffer_485[0] = 0x00;
@@ -1002,7 +1002,7 @@ void ReadDataPackage(unsigned char ControlByte){
             replyBuffer_485[2] = DEC2HEX(ParameterIdentifier.CurrentThreshold % 100);
             replySize = 3;
         }
-        /* »Ø¸´Ê£ÓàµçÁ÷Ô¤¾¯ÏÞÖµ */
+        /* ?Ø¸?Ê£??????Ô¤????Öµ */
         else if(identify[2] == 0x00 && identify[1] == 0x0E && identify[0] == 0x02) {
             ControlByte += 0x80;
             replyBuffer_485[0] = 0x00;
@@ -1010,7 +1010,7 @@ void ReadDataPackage(unsigned char ControlByte){
             replyBuffer_485[2] = DEC2HEX(ParameterIdentifier.CurrentThreshold % 100);
             replySize = 3;
         }
-        /* »Ø¸´µçÑ¹ÉÏÏÞÖµ */
+        /* ?Ø¸???Ñ¹????Öµ */
         else if(identify[2] == 0x00 && identify[1] == 0x0E && identify[0] == 0x03) {
             ControlByte += 0x80;
             temp = ParameterIdentifier.VoltageUpperRange;
@@ -1018,7 +1018,7 @@ void ReadDataPackage(unsigned char ControlByte){
             replyBuffer_485[1] = DEC2HEX(temp / 10);
             replySize = 2;
         }
-        /* »Ø¸´µçÑ¹ÏÂÏÞÖµ */
+        /* ?Ø¸???Ñ¹????Öµ */
         else if(identify[2] == 0x00 && identify[1] == 0x0E && identify[0] == 0x04) {
             ControlByte += 0x80;
             temp = ParameterIdentifier.VoltageDownRange;
@@ -1026,14 +1026,14 @@ void ReadDataPackage(unsigned char ControlByte){
             replyBuffer_485[1] = DEC2HEX(temp / 10);
             replySize = 2;
         }
-        /* »Ø¸´Ê£ÓàµçÁ÷³¬ÏÞÊ±³£ */
+        /* ?Ø¸?Ê£??????????Ê±?? */
         else if(identify[2] == 0x00 && identify[1] == 0x0D && identify[0] == 0x01) {
             ControlByte += 0x80;
             replyBuffer_485[0] = 0x02;
             replyBuffer_485[1] = 0x00;
             replySize = 2;
         }
-        /* »Ø¸´µçÑ¹¿¼ºËÉÏÏÞ */
+        /* ?Ø¸???Ñ¹???????? */
         else if(identify[2] == 0x09 && identify[1] == 0x0C && identify[0] == 0x01) {
             ControlByte += 0x80;
             temp = ParameterIdentifier.VoltageUpperRange;
@@ -1041,7 +1041,7 @@ void ReadDataPackage(unsigned char ControlByte){
             replyBuffer_485[1] = DEC2HEX(temp / 10);
             replySize = 2;
         }
-        /* »Ø¸´µçÑ¹¿¼ºËÏÂÏÞ */
+        /* ?Ø¸???Ñ¹???????? */
         else if(identify[2] == 0x09 && identify[1] == 0x0C && identify[0] == 0x02) {
             ControlByte += 0x80;
             temp = ParameterIdentifier.VoltageDownRange;
@@ -1051,7 +1051,7 @@ void ReadDataPackage(unsigned char ControlByte){
         }
     }
 
-    /* µÚËÄÖÖÊý¾Ý±êÖ¾(¶³½áÊý¾Ý±êÖ¾±í) */
+    /* ?????????Ý±?Ö¾(???????Ý±?Ö¾??) */
     if(identify[3] == 0x05) {
         if(identify[2] == 0x04 && identify[1] == 0x02) {
             if(identify[0] >= 0x01 && identify[0] <= 0x08) {
@@ -1061,25 +1061,25 @@ void ReadDataPackage(unsigned char ControlByte){
                 } else {
                     startAddr = MONITOR_EEPROM_DOWN;
                 }
-                /* µ±ÈÕÊý¾Ý */
+                /* ???????? */
                 if(identify[0] <= 4){
-                /* Èç¹ûÊÇ½ñÈÕÊý¾ÝÇÒÒªµÄÊÇ³¬¹ýÁËµ±Ç°Ê±¼äµÄÊý¾Ý£¬Ôò·µ»Ø */
+                /* ?????Ç½?????????Òª???Ç³????Ëµ?Ç°Ê±???????Ý£??ò·µ»? */
                     if((startAddr + identify[0] * 24 * 4) > monitorIndex) {
                         return;
                     } else {
-                        /* µ±Ç°¿éÊý¾ÝµÄÆäÊµµØÖ· */
-                        startAddr += (identify[0] - 1) * 24 * 4;//Õâ¸öµØÖ·²»»áÔ½½ç
+                        /* ??Ç°?????Ýµ???Êµ??Ö· */
+                        startAddr += (identify[0] - 1) * 24 * 4;//??????Ö·????Ô½??
                     }
                 } 
-                /* ÉÏÒ»ÈÕÊý¾Ý */
+                /* ??Ò»?????? */
                 else {
-                    /* µ±Ç°¿éÊý¾ÝµÄÆäÊµµØÖ· */
+                    /* ??Ç°?????Ýµ???Êµ??Ö· */
                     startAddr += (identify[0] - 1) * 24 * 4 + (MONITOR_EEPROM_SIZE / 2);
                 }
-                /* ·ÀÖ¹Òç³ö */
+                /* ??Ö¹???? */
                 if(startAddr > MONITOR_EEPROM_DOWN + MONITOR_EEPROM_SIZE) startAddr -= MONITOR_EEPROM_SIZE;
                 for(i = 0;i < 24;++i) {
-                    temp = eeprom_read_word((uint16_t *) startAddr);//Ç°Á½¸ö×Ö½ÚÊÇÂ©µçÁ÷Êý¾Ý
+                    temp = eeprom_read_word((uint16_t *) startAddr);//Ç°?????Ö½???Â©????????
                     startAddr += 4;
                     replyBuffer_485[i * 24 + 0] = 0;
                     replyBuffer_485[i * 24 + 1] = DEC2HEX(temp % 100);
@@ -1114,13 +1114,13 @@ void ReadDataPackage(unsigned char ControlByte){
         }
     }
 
-    /* µÚÎåÖÖÊý¾Ý±êÖ¾ */
+    /* ?????????Ý±?Ö¾ */
     if(identify[3] == 0x02) {
-        /* ·µ»ØµçÑ¹Êý¾Ý */
+        /* ???Øµ?Ñ¹???? */
         if(identify[2] == 0x01 && identify[0] == 0x00) {
             if(identify[1] == 0x01 || identify[1] == 0x02 || identify[1] == 0x03) {
                 ControlByte += 0x80;
-                /* ·µ»ØµçÑ¹Öµ */
+                /* ???Øµ?Ñ¹Öµ */
                 temp = getRightNowData(0x02,MonitorVoltageID);
                 replyBuffer_485[0] = DEC2HEX((temp % 10 ) * 10);
                 replyBuffer_485[1] = DEC2HEX(temp / 10);
@@ -1128,7 +1128,7 @@ void ReadDataPackage(unsigned char ControlByte){
 
             } else if(identify[1] == 0xFF) {
                 ControlByte += 0x80;
-                /* ·µ»ØµçÑ¹ÖµÊý¾Ý¿é */
+                /* ???Øµ?Ñ¹Öµ???Ý¿? */
                 temp = getRightNowData(0x02,MonitorVoltageID);
                 replyBuffer_485[0] = DEC2HEX((temp % 10 ) * 10);
                 replyBuffer_485[1] = DEC2HEX(temp / 10);
@@ -1139,21 +1139,21 @@ void ReadDataPackage(unsigned char ControlByte){
                 replySize = 6;
         
             } else {
-                /* ·µ»ØÖ¡´íÎóÊý¾Ý°ü */
+                /* ????Ö¡???????Ý°? */
                 ControlByte += 0xA0;
-                /* Áô´ýÒÔºóÊµÏÖ */
+                /* ?????Ôº?Êµ?? */
                 return;
             }
         }
     }
 
 
-    /* »Ø¸´Êý¾Ý°ü */
+    /* ?Ø¸????Ý°? */
 	/* 0xFE 0xFE 0xFE 0xFE */
 	ReplyTrailing4Byte();
     /* 1. Start Byte */
     USART0_Send_Byte(StartByte_485);
-    /* ¿ªÊ¼¼ÆËãÐ£ÑéºÍ */
+    /* ??Ê¼????Ð£???? */
     CheckSum_485 = StartByte_485;
     /* 2. My Address */
     for(i = 0;i < sizeof(myaddr);++i) {
@@ -1187,7 +1187,7 @@ void ReadDataPackage(unsigned char ControlByte){
     /* -- the end -- */
 }
 /*
-** Receive Data and Write it to Memory(Ö÷ÒªÓÃÓÚÅäÖÃ²ÎÊý)
+** Receive Data and Write it to Memory(??Òª???????Ã²???)
 */
 void WriteDataPackage(unsigned char ControlByte_485,unsigned char len) {
     volatile unsigned char identify[4] = {0};
@@ -1195,26 +1195,26 @@ void WriteDataPackage(unsigned char ControlByte_485,unsigned char len) {
     volatile unsigned int temp,t;
     volatile unsigned char dataStartIndex = 0;
     /*
-     * ¿ØÖÆ×Ö½Ú¼Ó0x80¾ÍÐÐÁË(Õý³£»Ø¸´)
+     * ?????Ö½Ú¼?0x80??????(?????Ø¸?)
      */
 
     /* Get idetifier - Command also*/
     for(i = 0;i < sizeof(identify);++i){
-        /* ´ÓµÍÎ»µ½¸ßÎ»ÅÅÁÐ */
+        /* ?Óµ?Î»????Î»???? */
         identify[i] = recData_485[sizeof(myaddr) + 3 + i] - DecodeByte;
     }
      
     dataStartIndex = sizeof(myaddr) + 3 + sizeof(identify);
-    /* ½âÂëÊý¾Ý */
+    /* ???????? */
     for(i = dataStartIndex;i < dataStartIndex + len - sizeof(identify);++i) {
         recData_485[i] -= DecodeByte;
         //USART0_Send_Byte(recData_485[i]);
     }
 
-    /* ²ÎÊýÊý¾Ý±êÊ¶ ±í1-3 */
+    /* ???????Ý±?Ê¶ ??1-3 */
     if(identify[3] == 0x04 && identify[2] == 0x00) {
         if(identify[1] == 0x01 && identify[0] == 0x01) {
-            /* ÉèÖÃÈÕÆÚ */
+            /* ???????? */
             //InitDateTime(0x00,0x00,0x00,0x01,0x22,0x02,0x16);
             
             InitDate(recData_485[dataStartIndex + 3],recData_485[dataStartIndex + 2],recData_485[dataStartIndex + 1],recData_485[dataStartIndex]);
@@ -1233,40 +1233,40 @@ void WriteDataPackage(unsigned char ControlByte_485,unsigned char len) {
             USART0_Send_Byte(recData_485[dataStartIndex]);
             */
         } else if(identify[1] == 0x01 && identify[0] == 0x02) {
-            /* ÉèÖÃÊ±¼ä */
+            /* ????Ê±?? */
             WriteEEPROM(DS1307,SECOND,recData_485[dataStartIndex]);
             dataStartIndex += 1;
             WriteEEPROM(DS1307,MINUTE,recData_485[dataStartIndex]);
             dataStartIndex += 1;
             WriteEEPROM(DS1307,HOUR,recData_485[dataStartIndex]);
         } else if(identify[1] == 0x04 && identify[0] == 0x01) {
-            /* ÉèÖÃÍ¨ÐÅµØÖ· */
+            /* ????Í¨?Åµ?Ö· */
             for(i = 0; i < sizeof(myaddr);++i,dataStartIndex++) {
                 myaddr[i] = recData_485[dataStartIndex];
             }
         } else if(identify[1] == 0x0E && (identify[0] == 0x01 || identify[0] == 0x02)){
-            /* ÉèÖÃµçÁ÷³¬ÏÞãÐÖµ */
+            /* ???Ãµ?????????Öµ */
             ParameterIdentifier.CurrentThreshold = HEX2DEC(recData_485[dataStartIndex + 2]);
         } else if(identify[1] == 0x0E && identify[0] == 0x03) {
-            /* ÉèÖÃµçÑ¹³¬ÏÞÉÏÏÞ */
+            /* ???Ãµ?Ñ¹???????? */
             temp = HEX2DEC(recData_485[dataStartIndex]) / 10;
             dataStartIndex += 1;
             temp += HEX2DEC(recData_485[dataStartIndex]) * 10;
             ParameterIdentifier.VoltageUpperRange = temp;
         } else if(identify[1] == 0x0E && identify[0] == 0x04) {
-            /* ÉèÖÃµçÑ¹³¬ÏÞÏÂÏÞ */
+            /* ???Ãµ?Ñ¹???????? */
             temp = HEX2DEC(recData_485[dataStartIndex]) / 10;
             dataStartIndex += 1;
             temp += HEX2DEC(recData_485[dataStartIndex]) * 10;
             ParameterIdentifier.VoltageDownRange = temp;
         } else if(identify[1] == 0x0C && identify[0] == 0x01){
-            /* ÉèÖÃµçÑ¹³¬ÏÞÉÏÏÞ */
+            /* ???Ãµ?Ñ¹???????? */
             temp = HEX2DEC(recData_485[dataStartIndex]) / 10;
             dataStartIndex += 1;
             temp += HEX2DEC(recData_485[dataStartIndex]) * 10;
             ParameterIdentifier.VoltageUpperRange = temp;
         } else if(identify[1] == 0x0C && identify[0] == 0x02) {
-            /* ÉèÖÃµçÑ¹³¬ÏÞÏÂÏÞ */
+            /* ???Ãµ?Ñ¹???????? */
             temp = HEX2DEC(recData_485[dataStartIndex]) / 10;
             dataStartIndex += 1;
             temp += HEX2DEC(recData_485[dataStartIndex]) * 10;
@@ -1290,7 +1290,7 @@ void ReceivedDataProcess_485(int num) {
 		#endif
 		return;
 	}
-    /* ¿ªÊ¼¼ÆËãÐ£ÑéºÍ */
+    /* ??Ê¼????Ð£???? */
 	CheckSum_485 = StartByte_485;
 	for(i = 0;i < num - 1;++i) {
 		CheckSum_485 += recData_485[i];
@@ -1315,27 +1315,27 @@ void ReceivedDataProcess_485(int num) {
 			return;
 		}
 	}
-    /* ¿ØÖÆ×Ö½Ú£¬±êÊ¶Êý¾Ý°üÀàÐÍ */	
+    /* ?????Ö½Ú£???Ê¶???Ý°????? */	
 	ControlByte_485 = recData_485[sizeof(myaddr) + 1];
-    /* Êý¾Ý°üµÄÊý¾Ý²¿·Ö³¤¶È */
+    /* ???Ý°??????Ý²??Ö³??? */
 	DataLength_485 = recData_485[sizeof(myaddr) + 2];
     /* in common case , DataLength_485 is 4 */
     
 	/* Prepare Data for Different Control Byte
-    ** ¸ù¾Ý²»Í¬µÄ¿ØÖÆ×Ö·Ö·¢µ½²»Í¬µÄ×Óº¯Êý
+    ** ???Ý²?Í¬?Ä¿????Ö·Ö·?????Í¬???Óº???
 	** start from Page 14 
     */
 	switch(ControlByte_485) {
 		/* Broadcast Time Calibration */
 		case 0x08: {
-			/* ´ËÊ±µØÖ·ÊÇÈ«0x99 */
-			/* Õâ¸ö°ü²»ÐèÒª»Ø¸´ */
+			/* ??Ê±??Ö·??È«0x99 */
+			/* ??????????Òª?Ø¸? */
 
 			break;
 		}
 		/* Read Data */
 		case 0x11: {
-			/* Í¨³££¬Êý¾Ý°üµÄ³¤¶ÈÊÇ4 */
+			/* Í¨???????Ý°??Ä³?????4 */
             if(DataLength_485 != 4) {
                 #ifdef DEBUG
                     USART0_Send_Byte(0x40);
@@ -1347,7 +1347,7 @@ void ReceivedDataProcess_485(int num) {
 		}
 		/* Read Continue Data */
 		case 0x12: {
-			/* »Ø¸´¿ØÖÆÂëÎª0x92 */
+			/* ?Ø¸???????Îª0x92 */
             #ifdef DEBUG
                 USART0_Send_Byte(0x50);
             #endif
@@ -1355,20 +1355,20 @@ void ReceivedDataProcess_485(int num) {
 		}
 		/* Read Address */
 		case 0x13: {
-			/* ´ËÊ±µØÖ·ÊÇÈ«0xAA */
-			/* »Ø¸´¿ØÖÆÂëÎª0x93 */
+			/* ??Ê±??Ö·??È«0xAA */
+			/* ?Ø¸???????Îª0x93 */
 			break;
 		}
 		/* Write Data */
 		case 0x14: {
-			/* »Ø¸´¿ØÖÆÂëÎª0x94 */
+			/* ?Ø¸???????Îª0x94 */
 			WriteDataPackage(ControlByte_485,DataLength_485); 
             break;
 		}
 		/* Write Address */
 		case 0x15: {
-			/* ´ËÊ±µØÖ·ÊÇÈ«0xAA */
-			/* »Ø¸´¿ØÖÆÂëÎª0x95 */
+			/* ??Ê±??Ö·??È«0xAA */
+			/* ?Ø¸???????Îª0x95 */
 			break;
 		}
 		default: {
@@ -1418,7 +1418,7 @@ int main() {
 	#endif
 
 	READ485;
-    /* ³õÊ¼»¯±äÁ¿  */
+    /* ??Ê¼??????  */
     HistoryProblem.CurrentProblemTime_MSB = 0;
     HistoryProblem.CurrentProblemTime_LSB = 0;
     HistoryProblem.currentRecordIndex = 0;
@@ -1438,9 +1438,9 @@ int main() {
 		    recFlag_Zigbee = 0;
 		    /* --- Step 1: Send ACK_Zigbee to ZigBee router --- */
 		    /* then router stop send data to coordinator */
-		    ACK_Zigbee[1] = recBuffer_Zigbee[0];//router device id
-		    ACK_Zigbee[2] = recBuffer_Zigbee[1];//leak current high byte
-		    ACK_Zigbee[3] = recBuffer_Zigbee[2];//leak current low byte
+		    ACK_Zigbee[2] = recBuffer_Zigbee[0];//router device id
+		    ACK_Zigbee[3] = recBuffer_Zigbee[1];//leak current high byte
+		    ACK_Zigbee[4] = recBuffer_Zigbee[2];//leak current low byte
 		    for(i = 0;i < Zigbee_AckLen;i++) {
 		    	/* Send Acknowledgement Packet to Router */
 				USART1_Send_Byte(ACK_Zigbee[i]);
@@ -1494,18 +1494,18 @@ int main() {
 			READ485;
 		}
 		
-		/* Ã¿¸ô1·ÖÖÓ¸üÐÂµ±Ç°Ð¡Ê±Êý£¬ÅÐ¶ÏÊÇ·ñµ½ÁËµÚ¶þÌì */
+		/* Ã¿??1???Ó¸??Âµ?Ç°Ð¡Ê±?????Ð¶??Ç·????ËµÚ¶??? */
 		if(1 == oneMinuteFlag) {
 			oneMinuteFlag = 0;
-			/* ¶ÁÈ¡Ð¡Ê±Êý */
+			/* ??È¡Ð¡Ê±?? */
 			t = ReadDS1307(DS1307,HOUR);
 			if(t < ThisHour) {
-				/* ÒÑ¾­ÊÇµÚ¶þÌìÁË OR ÏµÍ³¸Õ¸ÕÆô¶¯ */
-				ThisHour = t;//¸üÐÂµ±Ç°Ð¡Ê±Êý
-				/* ½«CurrentDataBlock_1 ÖÐµÄ¼ÆÊýÎ»¶¼ÇåÁã */
+				/* ?Ñ¾??ÇµÚ¶????? OR ÏµÍ³?Õ¸????? */
+				ThisHour = t;//???Âµ?Ç°Ð¡Ê±??
+				/* ??CurrentDataBlock_1 ?ÐµÄ¼???Î»?????? */
 				CurrentDataBlock_1.currentLeakTimes = 0;
 				CurrentDataBlock_1.maxCurrent = 0;
-				/* Æ½¾ùµçÁ÷Ä¿Ç°ÎÞÒâÒå */
+				/* Æ½??????Ä¿Ç°?????? */
 				//CurrentDataBlock_1.avgCurrent = ;
 				CurrentDataBlock_1.todayPowerDownTimes = 0;
 
