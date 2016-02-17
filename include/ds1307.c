@@ -1,4 +1,5 @@
 #include "ds1307.h"
+#include "at24c128.h"
 
 /* 在其他头文件中定义的函数 */
 extern unsigned char WriteEEPROM(unsigned char DevAddr,unsigned int MemAddr,unsigned char data);
