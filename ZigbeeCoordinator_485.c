@@ -525,6 +525,44 @@ unsigned int getRightNowData(unsigned char *addr,unsigned char type){
     } else return 0;//Ĭ?Ϸ???ֵ
 }
 /*
+** general format of query data form router
+** use return value or global variable to return queried data
+*/
+unsigned int generalQueryData(unsigned char *p,unsigned char command,unsigned char value) {
+	unsigned int result = 0;
+	unsigned char i;
+
+	RealTimeQuery = 1;
+	/* send query command */
+	USART1_Send_Byte(StartByte_Zigbee);
+    USART1_Send_Byte(0x09);//package length
+    for(i = 0;i < sizeof(myaddr);++i){
+    	USART1_Send_Byte(myaddr[i]);
+    }
+    USART1_Send_Byte(command);//Command Byte
+    USART1_Send_Byte(value);
+    USART1_Send_Byte(EndByte_Zigbee);
+
+    /* wait for reply data */
+    for(i = 0;i < QueryPeriod;++i) {
+        if(1 == recFlag_Zigbee) {
+        	break;
+        }
+        else _delay_ms(50);
+    }
+
+    /* process received data */
+    if(recFlag_Zigbee == 1) {
+    	recFlag_Zigbee = 0;
+    	/* store recieved data to correct place */
+    	if(command == 0x01 || command == 0x02 || command == 0x03 || command = 0x05) result = ;
+    }
+
+	RealTimeQuery = 0;
+
+	return result;
+}
+/*
 ** Reply Four 0xFE
 */
 inline void ReplyTrailing4Byte() {
