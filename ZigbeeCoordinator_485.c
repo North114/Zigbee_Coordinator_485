@@ -103,6 +103,7 @@ volatile unsigned char myaddr[] = {0x12,0x34,0x56,0x78,0x90,0x12};//LSB -- MSB
 volatile unsigned char recBuffer_485[recBufferSize_485];
 volatile unsigned char recData_485[recBufferSize_485];
 volatile unsigned char replyBuffer_485[replyBufferSize_485];
+volatile unsigned char ZigbeeTransmitBuf[10];
 
 /* ֡?ֽ? */
 volatile unsigned char CheckSum_485 = 0;
@@ -162,8 +163,8 @@ struct HistoryProblem {
 /* ??Ӧ?ڲα??????ݱ?ʶ?????먱? 1-3) */
 struct ParameterIdentifier {
 	unsigned char CurrentThreshold;
-	unsigned char VoltageUpperRange;
-	unsigned char VoltageDownRange;
+	unsigned int VoltageUpperRange;
+	unsigned int VoltageDownRange;
 }ParameterIdentifier = {10,240,200};
 
 /* ??ѹ?ϸ???????ָ??(?? 1-6) */
@@ -180,6 +181,13 @@ volatile struct VoltagePassRate {
     unsigned int minVoltage;
     struct OccurTime minVoltageOccureTime;
 };
+
+struct AddressIdMapping {
+    unsigned char address[6];
+    unsigned char id;
+}AddressIdMapping;
+AddressIdMapping addressIdMapping[15];//give every router 1000 byte space to store history data , totally 15 router
+
 /* ?洢????15?յĵ?ѹ?ϸ??????? */
 volatile struct VoltagePassRate voltagePassRate[15];
 volatile unsigned char voltagePassRateIndex = 0;
@@ -213,8 +221,8 @@ volatile unsigned char RouterNum = 20;//Totle Router Number in a zone
 volatile unsigned char QueryPeriod = 30;//30 * 50 = 1500 ms = 1.5 second(Query Period)
 /* Router Parameter Default Value */
 volatile unsigned char CurrentThreshold = 10;
-volatile unsigned char VoltageUpperRange = 40;//(240V)upper voltage range(+5%)
-volatile unsigned char VoltageDownRange = 40;//(200V)down voltage range(-10%)
+volatile unsigned int VoltageUpperRange = 40;//(240V)upper voltage range(+5%)
+volatile unsigned int VoltageDownRange = 40;//(200V)down voltage range(-10%)
 volatile unsigned char MonitorVoltageID = 1;//Router that sending Voltage Monitor Data
 volatile unsigned char RetransmitTimeRatio = 50;//Retransmit period Ratindex_Bluetooth++o
 
@@ -517,7 +525,17 @@ unsigned int getRightNowData(volatile unsigned char *addr,unsigned char type){
         }
 
         Current = recBuffer_Zigbee[sizeof(myaddr) + 2] * 256 + recBuffer_Zigbee[sizeof(myaddr) + 3];
+        if(Current < 25500) {
+            Current = Current / 100;
+        } else {
+            Current = 255;
+        }
         Voltage = recBuffer_Zigbee[sizeof(myaddr) + 4] * 256 + recBuffer_Zigbee[sizeof(myaddr) + 5];
+        if(Voltage < 25500){
+            Voltage = Voltage / 100;
+        } else {
+            Voltage = 255;
+        }
     }
 
     RealTimeQuery = 0;
@@ -531,20 +549,23 @@ unsigned int getRightNowData(volatile unsigned char *addr,unsigned char type){
 /*
 ** general format of query data form router
 ** use return value or global variable to return queried data
+** pointer p not used yet
 */
-unsigned int generalQueryData(unsigned char *p,unsigned char command,unsigned char value) {
+unsigned int generalQueryData(unsigned char command,unsigned char *buf,unsigned char len) {
 	unsigned int result = 0;
 	unsigned char i;
 
 	RealTimeQuery = 1;
 	/* send query command */
 	USART1_Send_Byte(StartByte_Zigbee);
-    USART1_Send_Byte(0x09);//package length
+    USART1_Send_Byte(8 + len);//package length
     for(i = 0;i < sizeof(myaddr);++i){
     	USART1_Send_Byte(myaddr[i]);
     }
     USART1_Send_Byte(command);//Command Byte
-    USART1_Send_Byte(value);
+    for(i = 0;i < len;++i){
+        USART1_Send_Byte(*(buf + i));
+    }
     USART1_Send_Byte(EndByte_Zigbee);
 
     /* wait for reply data */
@@ -558,8 +579,21 @@ unsigned int generalQueryData(unsigned char *p,unsigned char command,unsigned ch
     /* process received data */
     if(recFlag_Zigbee == 1) {
     	recFlag_Zigbee = 0;
-    	/* store recieved data to correct place */
-    	//if(command == 0x01 || command == 0x02 || command == 0x03 || command = 0x05) result = generalQueryData();
+    	/* store recieved data into correct place */
+    	if((command == 0x05 || command == 0x08 || command == 0x09 || command == 10) && 10 == recNum_Zigbee) {
+        //10 byte reply
+            result = recBuffer_Zigbee[sizeof(myaddr) + 2] * 256 + recBuffer_Zigbee[sizeof(myaddr) + 3];
+        } else if((command == 0x01 || command == 0x02 || command == 0x03 || command == 0x06 || command == 0x07) && 9 == recNum_Zigbee){
+        //9 byte reply
+            result = recBuffer_Zigbee[sizeof(myaddr) + 2];
+        } else {
+            #ifdef DEBUG
+                USART0_Send_Byte(command);
+                for(i = 0;i < len;++i) {
+                    USART0_Send_Byte(*(buf + i));
+                }
+            #endif
+        }
     }
 
 	RealTimeQuery = 0;
@@ -624,6 +658,10 @@ void ReadDataPackage(unsigned char ControlByte){
         else if(identify[1] == 0x01 && identify[0] == 0x00) {
             /* Now we just Monitor a Value */
             ControlByte += 0x80;
+            /* Query Router for Results */
+            ZigbeeTransmitBuf[0] = 0x00;
+            CurrentDataBlock_1.currentLeakTimes = generalQueryData(0x05,ZigbeeTransmitBuf,0x01);
+            /* Load Data to Transmit Buffer */
             replyBuffer_485[0] = 0x00;//LSBС??????Ĭ??Ϊ0
             replyBuffer_485[1] = DEC2HEX(CurrentDataBlock_1.currentLeakTimes % 100);
             replyBuffer_485[2] = DEC2HEX((CurrentDataBlock_1.currentLeakTimes / 100) % 100);
@@ -633,6 +671,8 @@ void ReadDataPackage(unsigned char ControlByte){
         /* ?ظ?????????ʣ??????ֵ */
         else if(identify[1] == 0x02 && identify[0] == 0x00) {
             ControlByte += 0x80;
+            ZigbeeTransmitBuf[0] = 0x00;
+            CurrentDataBlock_1.maxCurrent = generalQueryData(0x07,ZigbeeTransmitBuf,0x01);
             replyBuffer_485[0] = 0x00;//LSBС??????Ĭ??Ϊ0
             replyBuffer_485[1] = DEC2HEX(CurrentDataBlock_1.maxCurrent % 100);
             replyBuffer_485[2] = DEC2HEX((CurrentDataBlock_1.maxCurrent / 100) % 100);
@@ -640,7 +680,7 @@ void ReadDataPackage(unsigned char ControlByte){
             replySize = 4;
 
         } 
-        /* ?ظ?????ƽ??ʣ?????? -- ??????????*/
+        /* Today Mean Current Leakage Value */
         else if(identify[1] == 0x03 && identify[0] == 0x00) {
 			/*
             ControlByte += 0x80;
@@ -650,13 +690,22 @@ void ReadDataPackage(unsigned char ControlByte){
             replyBuffer_485[3] = DEC2HEX(CurrentDataBlock_1.avgCurrent / 10000);//MSB
             replySize = 4;
 			*/
-			ControlByte += 0xC0;
-			return;
+			ControlByte += 0x80;
+            ZigbeeTransmitBuf[0] = 0x00;
+            CurrentDataBlock_1.avgCurrent = generalQueryData(0x06,ZigbeeTransmitBuf,0x01);
+            replyBuffer_485[0] = 0x00;//LSBС??????Ĭ??Ϊ0
+            replyBuffer_485[1] = DEC2HEX(CurrentDataBlock_1.avgCurrent % 100);
+            replyBuffer_485[2] = DEC2HEX((CurrentDataBlock_1.avgCurrent / 100) % 100);
+            replyBuffer_485[3] = DEC2HEX(CurrentDataBlock_1.avgCurrent / 10000);//MSB
+            replySize = 4;
         }
         /* ?ظ????????????? */
         else if(identify[1] == 0x04 && identify[0] == 0x00) {
             ControlByte += 0x80;
             replyBuffer_485[0] = 0x00;//LSB
+            /* Load Command */
+            ZigbeeTransmitBuf[0] = 0x00;
+            CurrentDataBlock_1.todayPowerDownTimes = generalQueryData(10,ZigbeeTransmitBuf,0x01);
             replyBuffer_485[1] = DEC2HEX(CurrentDataBlock_1.todayPowerDownTimes % 100);
             replyBuffer_485[2] = DEC2HEX((CurrentDataBlock_1.todayPowerDownTimes / 100) % 100);
             replyBuffer_485[3] = DEC2HEX(CurrentDataBlock_1.todayPowerDownTimes / 10000);//MSB
@@ -860,13 +909,9 @@ void ReadDataPackage(unsigned char ControlByte){
             /* ??ȡ??ʱ?? */
             Read_Current_Time(DS1307,CurrentTime,7);
             replyBuffer_485[0] = CurrentTime[WEEKDAY];
-            USART0_Send_Byte(CurrentTime[WEEKDAY]);
             replyBuffer_485[1] = CurrentTime[DATE];
-            USART0_Send_Byte(CurrentTime[DATE]);
             replyBuffer_485[2] = CurrentTime[MONTH];
-            USART0_Send_Byte(CurrentTime[MONTH]);
             replyBuffer_485[3] = CurrentTime[YEAR];
-            USART0_Send_Byte(CurrentTime[YEAR]);
             replySize = 4;
         }
         /* ?ظ?ʱ???? */
@@ -890,6 +935,8 @@ void ReadDataPackage(unsigned char ControlByte){
         /* ?ظ?ʣ????????????ֵ */
         else if(identify[2] == 0x00 && identify[1] == 0x0E && identify[0] == 0x01) {
             ControlByte += 0x80;
+            ZigbeeTransmitBuf[0] = 0x00;
+            ParameterIdentifier.CurrentThreshold = generalQueryData(0x01,ZigbeeTransmitBuf,1);
             replyBuffer_485[0] = 0x00;
             replyBuffer_485[1] = 0x00;
             replyBuffer_485[2] = DEC2HEX(ParameterIdentifier.CurrentThreshold % 100);
@@ -898,6 +945,8 @@ void ReadDataPackage(unsigned char ControlByte){
         /* ?ظ?ʣ??????Ԥ????ֵ */
         else if(identify[2] == 0x00 && identify[1] == 0x0E && identify[0] == 0x02) {
             ControlByte += 0x80;
+            ZigbeeTransmitBuf[0] = 0x00;
+            ParameterIdentifier.CurrentThreshold = generalQueryData(0x01,ZigbeeTransmitBuf,1);
             replyBuffer_485[0] = 0x00;
             replyBuffer_485[1] = 0x00;
             replyBuffer_485[2] = DEC2HEX(ParameterIdentifier.CurrentThreshold % 100);
@@ -906,7 +955,11 @@ void ReadDataPackage(unsigned char ControlByte){
         /* ?ظ???ѹ????ֵ */
         else if(identify[2] == 0x00 && identify[1] == 0x0E && identify[0] == 0x03) {
             ControlByte += 0x80;
+            ZigbeeTransmitBuf[0] = 0x00;
+            ParameterIdentifier.VoltageUpperRange = generalQueryData(0x02,ZigbeeTransmitBuf,1) + 220;
             temp = ParameterIdentifier.VoltageUpperRange;
+            USART0_Send_Byte(temp / 256);
+            USART0_Send_Byte(temp % 256);
             replyBuffer_485[0] = DEC2HEX((temp % 10) * 10);
             replyBuffer_485[1] = DEC2HEX(temp / 10);
             replySize = 2;
@@ -914,6 +967,8 @@ void ReadDataPackage(unsigned char ControlByte){
         /* ?ظ???ѹ????ֵ */
         else if(identify[2] == 0x00 && identify[1] == 0x0E && identify[0] == 0x04) {
             ControlByte += 0x80;
+            ZigbeeTransmitBuf[0] = 0x00;
+            ParameterIdentifier.VoltageDownRange = 220 - generalQueryData(0x03,ZigbeeTransmitBuf,1);
             temp = ParameterIdentifier.VoltageDownRange;
             replyBuffer_485[0] = DEC2HEX((temp % 10) * 10);
             replyBuffer_485[1] = DEC2HEX(temp / 10);
@@ -922,6 +977,7 @@ void ReadDataPackage(unsigned char ControlByte){
         /* ?ظ?ʣ??????????ʱ?? */
         else if(identify[2] == 0x00 && identify[1] == 0x0D && identify[0] == 0x01) {
             ControlByte += 0x80;
+            /* Reply With a Default Value */
             replyBuffer_485[0] = 0x02;
             replyBuffer_485[1] = 0x00;
             replySize = 2;
@@ -929,6 +985,8 @@ void ReadDataPackage(unsigned char ControlByte){
         /* ?ظ???ѹ???????? */
         else if(identify[2] == 0x09 && identify[1] == 0x0C && identify[0] == 0x01) {
             ControlByte += 0x80;
+            ZigbeeTransmitBuf[0] = 0x00;
+            ParameterIdentifier.VoltageUpperRange = generalQueryData(0x02,ZigbeeTransmitBuf,1) + 220;
             temp = ParameterIdentifier.VoltageUpperRange;
             replyBuffer_485[0] = DEC2HEX((temp % 10) * 10);
             replyBuffer_485[1] = DEC2HEX(temp / 10);
@@ -937,6 +995,8 @@ void ReadDataPackage(unsigned char ControlByte){
         /* ?ظ???ѹ???????? */
         else if(identify[2] == 0x09 && identify[1] == 0x0C && identify[0] == 0x02) {
             ControlByte += 0x80;
+            ZigbeeTransmitBuf[0] = 0x00;
+            ParameterIdentifier.VoltageDownRange = 220 - generalQueryData(0x03,ZigbeeTransmitBuf,1);
             temp = ParameterIdentifier.VoltageDownRange;
             replyBuffer_485[0] = DEC2HEX((temp % 10) * 10);
             replyBuffer_485[1] = DEC2HEX(temp / 10);
@@ -1120,30 +1180,49 @@ void WriteDataPackage(unsigned char ControlByte_485,unsigned char len) {
         } else if(identify[1] == 0x0E && (identify[0] == 0x01 || identify[0] == 0x02)){
             /* ???õ?????????ֵ */
             ParameterIdentifier.CurrentThreshold = HEX2DEC(recData_485[dataStartIndex + 2]);
+            /* Load Data */
+            ZigbeeTransmitBuf[0] = (ParameterIdentifier.CurrentThreshold) & 0xFF;
+            generalQueryData(1,ZigbeeTransmitBuf,1);
         } else if(identify[1] == 0x0E && identify[0] == 0x03) {
             /* ???õ?ѹ???????? */
             temp = HEX2DEC(recData_485[dataStartIndex]) / 10;
             dataStartIndex += 1;
             temp += HEX2DEC(recData_485[dataStartIndex]) * 10;
             ParameterIdentifier.VoltageUpperRange = temp;
+            /* Load Data */
+            if(temp & 0xFF > 220)ZigbeeTransmitBuf[0] = temp & 0xFF - 220;
+            else return;
+            generalQueryData(2,ZigbeeTransmitBuf,1);
         } else if(identify[1] == 0x0E && identify[0] == 0x04) {
             /* ???õ?ѹ???????? */
             temp = HEX2DEC(recData_485[dataStartIndex]) / 10;
             dataStartIndex += 1;
             temp += HEX2DEC(recData_485[dataStartIndex]) * 10;
             ParameterIdentifier.VoltageDownRange = temp;
+            /* Load Data */
+            if(temp & 0xFF < 220)ZigbeeTransmitBuf[0] = 220 - temp & 0xFF;
+            else return;
+            generalQueryData(3,ZigbeeTransmitBuf,1);
         } else if(identify[1] == 0x0C && identify[0] == 0x01){
             /* ???õ?ѹ???????? */
             temp = HEX2DEC(recData_485[dataStartIndex]) / 10;
             dataStartIndex += 1;
             temp += HEX2DEC(recData_485[dataStartIndex]) * 10;
             ParameterIdentifier.VoltageUpperRange = temp;
+            /* Load Data */
+            if(temp & 0xFF > 220)ZigbeeTransmitBuf[0] = temp & 0xFF - 220;
+            else return;
+            generalQueryData(2,ZigbeeTransmitBuf,1);
         } else if(identify[1] == 0x0C && identify[0] == 0x02) {
             /* ???õ?ѹ???????? */
             temp = HEX2DEC(recData_485[dataStartIndex]) / 10;
             dataStartIndex += 1;
             temp += HEX2DEC(recData_485[dataStartIndex]) * 10;
             ParameterIdentifier.VoltageDownRange = temp;
+            /* Load Data */
+            if(temp & 0xFF < 220)ZigbeeTransmitBuf[0] = 220 - temp & 0xFF;
+            else return;
+            generalQueryData(3,ZigbeeTransmitBuf,1);
         } else {
             #ifdef DEBUG
                 USART0_Send_Byte(0x11);
