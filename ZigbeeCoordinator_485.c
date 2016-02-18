@@ -36,12 +36,12 @@ date:03-17-2015
 #include "include/485.h"
 
 #define DEBUG
-
+#define TestUSART1
 /* Zigbee Related Macro */
 /** StartByte_Zigbee + UserIDByte + LeakageValueByteMSB + LeakageValueByteLSB
 + VoltageMSB + VoltagelSB + EndByte_Zigbee**/
 #define recBufferSize_Zigbee 25// larger than PackLen
-#define Zigbee_PackLen 12
+#define Zigbee_PackLen 13 // Length + Address(6) + DeviceId + Current(2) + Voltage(2) + EventType
 #define Zigbee_AckLen 12
 
 #define StartByte_Zigbee 0xAA
@@ -116,7 +116,6 @@ volatile unsigned char ThisHour;//??ǰСʱ??
 volatile unsigned char oneMinuteCount = 0;
 volatile unsigned char oneMinuteFlag = 0;
 volatile unsigned char monitorIndex = MONITOR_EEPROM_DOWN;
-
 /* ??Ӧ?ڵ??????ݱ?ʶ(?? 1-1) */
 volatile struct CurrentDataBlock_1 {
 	unsigned int thisCurrent;//??ǰ©????ֵ
@@ -486,40 +485,39 @@ unsigned int getRightNowData(volatile unsigned char *addr,unsigned char type){
     } else 
     */
     /* else , we just query router for data */
-    {
-        /* Send Query Command to Routers */				
-        USART1_Send_Byte(StartByte_Zigbee);
-        USART1_Send_Byte(0x09);//package length
-        for(i = 0;i < sizeof(myaddr);++i){
-        	USART1_Send_Byte(myaddr[i]);
+    /* Send Query Command to Routers */				
+    USART1_Send_Byte(StartByte_Zigbee);
+    USART1_Send_Byte(0x09);//package length
+    for(i = 0;i < sizeof(myaddr);++i){
+        USART1_Send_Byte(myaddr[i]);
+    }
+    USART1_Send_Byte(ZigbeeQueryByte);//Command Byte
+    USART1_Send_Byte(0x00);
+    USART1_Send_Byte(EndByte_Zigbee);
+    /* Wait for ACK */
+    for(i = 0;i < QueryPeriod;++i) {
+        if(1 == recFlag_Zigbee) break;
+        else _delay_ms(50);
+    }
+    /* Process Received Data */
+    if(1 == recFlag_Zigbee) {
+        recFlag_Zigbee = 0;
+        /* --- Step 1: Send ACK_Zigbee to ZigBee router --- */
+        /* then router stop send data to coordinator */
+        for(i = 0; i < sizeof(myaddr);++i) {
+            ACK_Zigbee[i + 2] = myaddr[i];
         }
-        USART1_Send_Byte(ZigbeeQueryByte);//Command Byte
-        USART1_Send_Byte(0x00);
-        USART1_Send_Byte(EndByte_Zigbee);
-        /* Wait for ACK */
-        for(i = 0;i < QueryPeriod;++i) {
-            if(1 == recFlag_Zigbee) break;
-            else _delay_ms(50);
-        }
-        if(1 == recFlag_Zigbee) {
-            recFlag_Zigbee = 0;
-            /* --- Step 1: Send ACK_Zigbee to ZigBee router --- */
-            /* then router stop send data to coordinator */
-            for(i = 0; i < sizeof(myaddr);++i) {
-            	ACK_Zigbee[i + 2] = myaddr[i];
-            }
-            ACK_Zigbee[sizeof(addr) + 2] = 0x04;//command byte
-            ACK_Zigbee[sizeof(addr) + 3] = recBuffer_Zigbee[sizeof(addr) + 1];//leak current high byte
-            ACK_Zigbee[sizeof(addr) + 4] = recBuffer_Zigbee[sizeof(addr) + 2];//leak current low byte
+        ACK_Zigbee[sizeof(myaddr) + 2] = 0x04;//command byte
+        ACK_Zigbee[sizeof(myaddr) + 3] = recBuffer_Zigbee[sizeof(myaddr) + 2];//leak current high byte
+        ACK_Zigbee[sizeof(myaddr) + 4] = recBuffer_Zigbee[sizeof(myaddr) + 3];//leak current low byte
 
-            for(i = 0;i < Zigbee_AckLen;i++)
-            {
-                USART1_Send_Byte(ACK_Zigbee[i]);
-            }
-
-            Current = recBuffer_Zigbee[sizeof(myaddr) + 1] * 256 + recBuffer_Zigbee[sizeof(myaddr) + 2];
-            Voltage = recBuffer_Zigbee[sizeof(myaddr) + 3] * 256 + recBuffer_Zigbee[sizeof(myaddr) + 4];
+        for(i = 0;i < Zigbee_AckLen;i++)
+        {
+            USART1_Send_Byte(ACK_Zigbee[i]);
         }
+
+        Current = recBuffer_Zigbee[sizeof(myaddr) + 2] * 256 + recBuffer_Zigbee[sizeof(myaddr) + 3];
+        Voltage = recBuffer_Zigbee[sizeof(myaddr) + 4] * 256 + recBuffer_Zigbee[sizeof(myaddr) + 5];
     }
 
     RealTimeQuery = 0;
@@ -613,7 +611,8 @@ void ReadDataPackage(unsigned char ControlByte){
             if(identify[0] == 0x00) {
                 CurrentDataBlock_1.thisCurrent = getRightNowData(myaddr,0x01);
             } else {
-                CurrentDataBlock_1.thisCurrent = getRightNowData(myaddr,0x01);
+                //CurrentDataBlock_1.thisCurrent = getRightNowData(myaddr,0x01);
+                return;
             }
             replyBuffer_485[0] = 0x00;//LSBС???㲿??Ĭ??Ϊ0
             replyBuffer_485[1] = DEC2HEX(CurrentDataBlock_1.thisCurrent % 100);
@@ -1300,23 +1299,33 @@ int main() {
 		
 		/* If Valid Data have been Received From Zigbee */
 		if(1 == recFlag_Zigbee) {
+            #ifdef TestUSART1
+                WRITE485;
+                for(i = 0;i < recNum_Zigbee;++i){
+                    USART0_Send_Byte(recBuffer_Zigbee[i]);
+                }
+                READ485;
+            #endif
 		    cli();	//clear global interrupt
 		    recFlag_Zigbee = 0;
 		    /* --- Step 1: Send ACK_Zigbee to ZigBee router --- */
 		    /* then router stop send data to coordinator */
 
-		    for(i = 0;i < sizeof(myaddr);++i) {
-		    	ACK_Zigbee[i + 2] = myaddr[i];
-		    }
-		    ACK_Zigbee[sizeof(myaddr) + 2] = 0x04;
-		    ACK_Zigbee[sizeof(myaddr) + 3] = recBuffer_Zigbee[sizeof(myaddr) + 1];//leak current high byte
-		    ACK_Zigbee[sizeof(myaddr) + 4] = recBuffer_Zigbee[sizeof(myaddr) + 2];//leak current low byte
-		    for(i = 0;i < Zigbee_AckLen;i++) {
-		    	/* Send Acknowledgement Packet to Router */
-				USART1_Send_Byte(ACK_Zigbee[i]);
-		    }
 		    /* Store Received Data to EEPROM */
 		    if(recNum_Zigbee == Zigbee_PackLen) {//added 1 byte (07-15-2015)
+                /* Package Formate */
+                // Lenght + Address(6) + DeviceId + Current(2) + Voltage(2) + EventType
+                //
+                for(i = 0;i < sizeof(myaddr);++i) {
+                    ACK_Zigbee[i + 2] = myaddr[i];
+                }
+                ACK_Zigbee[sizeof(myaddr) + 2] = 0x04;
+                ACK_Zigbee[sizeof(myaddr) + 3] = recBuffer_Zigbee[sizeof(myaddr) + 2];//leak current high byte
+                ACK_Zigbee[sizeof(myaddr) + 4] = recBuffer_Zigbee[sizeof(myaddr) + 3];//leak current low byte
+                for(i = 0;i < Zigbee_AckLen;i++) {
+                    /* Send Acknowledgement Packet to Router */
+                    USART1_Send_Byte(ACK_Zigbee[i]);
+                }
 		    
 				LEDON();
 				if(RealTimeQuery == 0) StoreZigbeeReceivedData();//Ignore Query Staus
