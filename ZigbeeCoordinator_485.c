@@ -136,10 +136,10 @@ volatile struct CurrentProblemRecord {
     volatile unsigned char sSecond;//??ʼ??
     volatile unsigned int maxCurrent;//????ʣ??????ֵ
     volatile unsigned char id;//?ɼ?????id
-};
+}CurrentProblemRecord;
 
 /* ?????¼???¼ */
-volatile struct PowerDownRecord {
+struct PowerDownRecord {
     volatile unsigned char sYear;
     volatile unsigned char sMonth;
     volatile unsigned char sDate;
@@ -149,7 +149,7 @@ volatile struct PowerDownRecord {
     volatile unsigned char id;//?ɼ?????id
 };
 /* ??Ӧ?????¼???¼???ݱ?ʶ????(?? 1-2)*/
-volatile struct HistoryProblem {
+struct HistoryProblem {
     unsigned char CurrentProblemTime_MSB;//ʣ???????????ܴ?????1?ֽ?
     unsigned int CurrentProblemTime_LSB;//ʣ???????????ܴ?????2?ֽ?
     struct CurrentProblemRecord currentRecord[HISTORY_CACHE_SIZE];//ʣ??????????10?μ?¼
@@ -161,7 +161,7 @@ volatile struct HistoryProblem {
 }HistoryProblem;
 
 /* ??Ӧ?ڲα??????ݱ?ʶ?????먱? 1-3) */
-volatile struct ParameterIdentifier {
+struct ParameterIdentifier {
 	unsigned char CurrentThreshold;
 	unsigned char VoltageUpperRange;
 	unsigned char VoltageDownRange;
@@ -390,7 +390,11 @@ ISR(USART1_RX_vect)//USART Receive Complete Vector
     }*/
 
     if((startFlag_Zigbee == 1) && (index_Zigbee < recBufferSize_Zigbee - 1)) {
-    	if(index_Zigbee == 0) recNum_Zigbee = temp;
+    	recBuffer_Zigbee[index_Zigbee] = temp;
+    	if(index_Zigbee == 0) {
+            if(temp > 25)startFlag_Zigbee = 0;
+            else recNum_Zigbee = temp;
+        }
     	else if(index_Zigbee >= recNum_Zigbee){
     		if(temp == EndByte_Zigbee) {
  				recFlag_Zigbee = 1;
@@ -398,7 +402,6 @@ ISR(USART1_RX_vect)//USART Receive Complete Vector
     		index_Zigbee = 0;
     		startFlag_Zigbee = 0;
     	}
-    	recBuffer_Zigbee[index] = temp;
     	++index_Zigbee;
     }
 
@@ -445,6 +448,7 @@ ISR(TIMER0_OVF_vect)//Timer0 Overflow Interrupt Vector
 }
 /*
 ** Store Received data into EEPROM
+** We need to store data in different way
 */
 void StoreZigbeeReceivedData() {
 	unsigned int temp,i;
@@ -453,13 +457,13 @@ void StoreZigbeeReceivedData() {
 	unsigned char DataType;
 	
 	/* Step 1: ??ȡZigBee???ݰ??????? */
-	for(i = 0;i < sizeof(addr);++i) {
+	for(i = 0;i < sizeof(myaddr);++i) {
 		myaddr[i] = recBuffer_Zigbee[i + 1];//router id
 	}
 
-	Current = recBuffer_Zigbee[sizeof(addr) + 1] * 256 + recBuffer_Zigbee[sizeof(addr) + 2];
-	Voltage = recBuffer_Zigbee[sizeof(addr) + 3] * 256 + recBuffer_Zigbee[sizeof(addr) + 4];
-	DataType = recBuffer_Zigbee[sizeof(addr) + 5];//Zigbee_PackLen = 12
+	Current = recBuffer_Zigbee[sizeof(myaddr) + 1] * 256 + recBuffer_Zigbee[sizeof(myaddr) + 2];
+	Voltage = recBuffer_Zigbee[sizeof(myaddr) + 3] * 256 + recBuffer_Zigbee[sizeof(myaddr) + 4];
+	DataType = recBuffer_Zigbee[sizeof(myaddr) + 5];//Zigbee_PackLen = 12
 	
 	/* Step 2: ?洢???????ݵ??ڲ?EEPROM(?վ?) */
 	if(DataType == 0x00 || DataType == 0x01) {
@@ -468,19 +472,21 @@ void StoreZigbeeReceivedData() {
 	
 }
 /* ??ȡʵʱ??ѹ?????????? */
-unsigned int getRightNowData(unsigned char *addr,unsigned char type){
+unsigned int getRightNowData(volatile unsigned char *addr,unsigned char type){
     unsigned int Current = 0,Voltage = 0;
     unsigned char i;
 
     RealTimeQuery = 1;
     /* ??????????????,ֱ??ȡ?????????? */
     /* if there are data cached here */
+    /*
     if(cache_ttl[id] > 0) {
         Current = cache_current[id];
         Voltage = cache_voltage[id];
-    }
+    } else 
+    */
     /* else , we just query router for data */
-    else {
+    {
         /* Send Query Command to Routers */				
         USART1_Send_Byte(StartByte_Zigbee);
         USART1_Send_Byte(0x09);//package length
@@ -499,7 +505,7 @@ unsigned int getRightNowData(unsigned char *addr,unsigned char type){
             recFlag_Zigbee = 0;
             /* --- Step 1: Send ACK_Zigbee to ZigBee router --- */
             /* then router stop send data to coordinator */
-            for(i = 0; i < sizeof(myaddr);+=i) {
+            for(i = 0; i < sizeof(myaddr);++i) {
             	ACK_Zigbee[i + 2] = myaddr[i];
             }
             ACK_Zigbee[sizeof(addr) + 2] = 0x04;//command byte
@@ -555,7 +561,7 @@ unsigned int generalQueryData(unsigned char *p,unsigned char command,unsigned ch
     if(recFlag_Zigbee == 1) {
     	recFlag_Zigbee = 0;
     	/* store recieved data to correct place */
-    	if(command == 0x01 || command == 0x02 || command == 0x03 || command = 0x05) result = ;
+    	//if(command == 0x01 || command == 0x02 || command == 0x03 || command = 0x05) result = generalQueryData();
     }
 
 	RealTimeQuery = 0;
@@ -1102,31 +1108,11 @@ void WriteDataPackage(unsigned char ControlByte_485,unsigned char len) {
     /* ???????ݱ?ʶ ??1-3 */
     if(identify[3] == 0x04 && identify[2] == 0x00) {
         if(identify[1] == 0x01 && identify[0] == 0x01) {
-            /* ???????? */
             //InitDateTime(0x00,0x00,0x00,0x01,0x22,0x02,0x16);
-            
             InitDate(recData_485[dataStartIndex + 3],recData_485[dataStartIndex + 2],recData_485[dataStartIndex + 1],recData_485[dataStartIndex]);
-
-            /*
-            t = WriteEEPROM(DS1307,WEEKDAY,recData_485[dataStartIndex]);
-            USART0_Send_Byte(recData_485[dataStartIndex]);
-            dataStartIndex += 1;
-            t = WriteEEPROM(DS1307,DATE,recData_485[dataStartIndex]);
-            USART0_Send_Byte(recData_485[dataStartIndex]);
-            dataStartIndex += 1;
-            t = WriteEEPROM(DS1307,MONTH,recData_485[dataStartIndex]);
-            USART0_Send_Byte(recData_485[dataStartIndex]);
-            dataStartIndex += 1;
-            t = WriteEEPROM(DS1307,YEAR,recData_485[dataStartIndex]);
-            USART0_Send_Byte(recData_485[dataStartIndex]);
-            */
         } else if(identify[1] == 0x01 && identify[0] == 0x02) {
             /* ????ʱ?? */
-            WriteEEPROM(DS1307,SECOND,recData_485[dataStartIndex]);
-            dataStartIndex += 1;
-            WriteEEPROM(DS1307,MINUTE,recData_485[dataStartIndex]);
-            dataStartIndex += 1;
-            WriteEEPROM(DS1307,HOUR,recData_485[dataStartIndex]);
+            InitTime(recData_485[dataStartIndex + 2],recData_485[dataStartIndex + 1],recData_485[dataStartIndex]);
         } else if(identify[1] == 0x04 && identify[0] == 0x01) {
             /* ????ͨ?ŵ?ַ */
             for(i = 0; i < sizeof(myaddr);++i,dataStartIndex++) {
@@ -1279,11 +1265,11 @@ int main() {
     Timer0_Init();
     InitWatchDogTimer();
     initIOfor485Bus();
-    CheckParameter();
+    //CheckParameter();
 	
     sei();            //Enable Gloabal Interrupt
     _delay_ms(50);
-
+    
 	#ifdef DEBUG
 		WRITE485;
 		USART0_Send_Byte(0x55);//for debug Watch Dog Timer
@@ -1298,6 +1284,7 @@ int main() {
 		//ReadAddr();
 	#endif
 
+
 	READ485;
     /* ??ʼ??????  */
     HistoryProblem.CurrentProblemTime_MSB = 0;
@@ -1306,8 +1293,6 @@ int main() {
     HistoryProblem.voltageRecordIndex = 0;
     voltagePassRate[voltagePassRateIndex].minVoltage = 220;
     
-    InitDateTime(0x16,0x02,0x01,0x01,0x12,0x00,0x00);
-
     while(1) {
 		/* read switch button status */
 		//readButtonSatus();
@@ -1397,6 +1382,13 @@ int main() {
                 voltagePassRateIndex += 1;
                 if(voltagePassRateIndex >= 15) voltagePassRateIndex = 0;
                 voltagePassRate[voltagePassRateIndex].minVoltage = 220;
+                //notify Routers
+                USART1_Send_Byte(StartByte_Zigbee);
+                USART1_Send_Byte(0x05);
+                for(i = 0;i < 4;++i) {
+                    USART1_Send_Byte(0xFF);
+                }
+                USART1_Send_Byte(EndByte_Zigbee);
 			}
 		}
 
