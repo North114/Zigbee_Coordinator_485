@@ -55,20 +55,18 @@ date:03-17-2015
 #define StartByte_485 0x68
 #define EndByte_485 0x16 //end byte should less than 128,since it's a character
 #define DecodeByte 0x33
-#define SECOND 0x00
-#define MINUTE 0x01
-#define HOUR 0x02
-#define WEEKDAY 0x03
-#define DATE 0x04
-#define MONTH 0x05
-#define YEAR 0x06
 #define HISTORY_CACHE_SIZE 10
 #define MAX_UCHAR 255
 #define MAX_UINT 65535
 #define ONCHIP_EEPROM_SIZE (2*1024) //?ñ?????ȥ??????
 #define MONITOR_EEPROM_DOWN 100  //??ʼ??ַ
 #define MONITOR_EEPROM_SIZE (4*24*4*2) //?ֽ???
-#define ADDR_LENGTH 6
+#define ADDR_LENGTH 6 //router address length
+#define MaxRouterNumber 50 //as name
+#define RouterDataUnitSize 200 //each router has 200 byte space
+#define EEPROM_OFFSET 100 //byte reserved
+#define RouterDataItemLength 10 //length of every item of router data
+#define MYINT_MAX 65535
 
 #define CACHE_TIME 250
 #define CACHE_SPACE 200
@@ -184,10 +182,15 @@ volatile struct VoltagePassRate {
 };
 
 typedef struct AddressIdMapping {
-    unsigned char address[6];
-    unsigned char id;
+    unsigned char address[6];//Router Address
+    unsigned char id;//Router ID
+    unsigned char currentIndex;//0 ~ 9
+    unsigned char voltageIndex;//0 ~ 9
+    unsigned char isCurrentFull;//1 or 0
+    unsigned char isVoltageFull;//1 or 0
 };
-struct AddressIdMapping addressIdMapping[15];//give every router 1000 byte space to store history data , totally 15 router , we will fill this array when we received data from routers
+struct AddressIdMapping addressIdMapping[MaxRouterNumber];
+//give every router 100 * 2 byte space to store history data , 100 byte for current data and 100 byte for volatge data
 
 /* ?洢????15?յĵ?ѹ?ϸ??????? */
 volatile struct VoltagePassRate voltagePassRate[15];
@@ -221,7 +224,7 @@ volatile unsigned char ButtonStatus = 1;//default for GPRS
 volatile unsigned char RouterNum = 20;//Totle Router Number in a zone
 volatile unsigned char QueryPeriod = 30;//30 * 50 = 1500 ms = 1.5 second(Query Period)
 /* Router Parameter Default Value */
-volatile unsigned char CurrentThreshold = 10;
+volatile unsigned char CurrentThreshold = 20;
 volatile unsigned int VoltageUpperRange = 40;//(240V)upper voltage range(+5%)
 volatile unsigned int VoltageDownRange = 40;//(200V)down voltage range(-10%)
 volatile unsigned char MonitorVoltageID = 1;//Router that sending Voltage Monitor Data
@@ -455,6 +458,21 @@ ISR(TIMER0_OVF_vect)//Timer0 Overflow Interrupt Vector
 	TCNT0 = T0IniVal;//Timing/Counter Register
 }
 /*
+** Get Router Id by Address
+*/
+unsigned char getRouterId(unsigned char *buf,unsigned char len){
+    volatile unsigned char i,j;
+    
+    for(i = 0;i < MaxRouterNumber;++i){
+        for(j = 0;j < len;++j) {
+            if(addressIdMapping[i].address[j] != *(buf + j))break;
+            if(j == len - 1)return (i + 1);
+        }
+    }
+
+    return 255;
+}
+/*
 ** Store Received data into EEPROM
 ** We need to store data in different way
 */
@@ -463,21 +481,122 @@ void StoreZigbeeReceivedData() {
     unsigned char ReadTimeStatus,WriteEEPROMStatus;
 	unsigned int id,Current,Voltage;
 	unsigned char DataType;
-	
-	/* Step 1: ??ȡZigBee???ݰ??????? */
+	unsigned int index;
+
+	/* Step 1: Get Router Address */
 	for(i = 0;i < sizeof(myaddr);++i) {
-		myaddr[i] = recBuffer_Zigbee[i + 1];//router id
+		myaddr[i] = recBuffer_Zigbee[i + 1];//router address
+	}
+    
+    /* Step 3: Mapping Address to ID */
+    /*temp = getRouterId(myaddr,sizeof(myaddr));
+    #ifdef TestUSART1
+        USART0_Send_Byte(0x53);
+        USART0_Send_Byte(temp);
+    #endif
+    if(temp == 0 || temp > MaxRouterNumber) {
+        #ifdef TestUSART1
+            USART0_Send_Byte(0x01);
+        #endif
+        return;
+    }*/
+    /* Step 2: Obtain Data(id , Voltage , Current , address) */
+    id = recBuffer_Zigbee[sizeof(myaddr) + 1];
+	Current = recBuffer_Zigbee[sizeof(myaddr) + 2] * 256 + recBuffer_Zigbee[sizeof(myaddr) + 3];
+    Current = Current / 100;
+	Voltage = recBuffer_Zigbee[sizeof(myaddr) + 4] * 256 + recBuffer_Zigbee[sizeof(myaddr) + 5];
+    Voltage = Voltage / 100;
+	DataType = recBuffer_Zigbee[sizeof(myaddr) + 6];//Zigbee_PackLen = 12
+	if(id == 0 || id > MaxRouterNumber) {
+        #ifdef TestUSART1
+            USART0_Send_Byte(0x01);
+        #endif
+        return;
+    } else {
+        /* Store Id and Address Mapping Relationship */
+        for(i = 0;i < sizeof(myaddr);++i) {
+            addressIdMapping[id - 1].address[i] = myaddr[i];
+        }
+    }
+    
+    #ifdef TestUSART1
+        USART0_Send_Byte(id);
+        USART0_Send_Byte(Current);
+        USART0_Send_Byte(Voltage);
+        USART0_Send_Byte(DataType);
+    #endif
+	/* Step 3: Store Data into Proper Place */
+    /* Abnormal Current Event */   	
+	if((DataType == 0x00 && Current >= ParameterIdentifier.CurrentThreshold) || (DataType == 0x01)) {
+        /* Start Location Location */
+        index = EEPROM_OFFSET + (id - 1) * RouterDataUnitSize;
+        if(addressIdMapping[id - 1].currentIndex > 10) {
+            addressIdMapping[id - 1].currentIndex = 0;
+            addressIdMapping[id - 1].isCurrentFull = 1;//now EEPROM fulls
+        }
+        index += addressIdMapping[id - 1].currentIndex * RouterDataItemLength;
+
+        Read_Current_Time(DS1307,CurrentTime,7);
+        /* Write Data Into EEPROM(8 byte) */
+        WriteEEPROM(AT24C128,index,CurrentTime[YEAR]);
+        ++index;
+        WriteEEPROM(AT24C128,index,CurrentTime[MONTH]); 
+        ++index;
+        WriteEEPROM(AT24C128,index,CurrentTime[DATE]); 
+        ++index;
+        WriteEEPROM(AT24C128,index,CurrentTime[HOUR]); 
+        ++index;
+        WriteEEPROM(AT24C128,index,CurrentTime[MINUTE]); 
+        ++index;
+        WriteEEPROM(AT24C128,index,CurrentTime[SECOND]); 
+        ++index;
+        WriteEEPROM(AT24C128,index,Current / 256);
+        ++index;
+        WriteEEPROM(AT24C128,index,Current % 256);
+
+        /* Increment Index(for next time) */
+        if(9 <= addressIdMapping[id - 1].currentIndex) {
+            addressIdMapping[id - 1].currentIndex = 0;
+            addressIdMapping[id - 1].isCurrentFull = 1;
+        }
+        else addressIdMapping[id - 1].currentIndex += 1;
 	}
 
-	Current = recBuffer_Zigbee[sizeof(myaddr) + 1] * 256 + recBuffer_Zigbee[sizeof(myaddr) + 2];
-	Voltage = recBuffer_Zigbee[sizeof(myaddr) + 3] * 256 + recBuffer_Zigbee[sizeof(myaddr) + 4];
-	DataType = recBuffer_Zigbee[sizeof(myaddr) + 5];//Zigbee_PackLen = 12
-	
-	/* Step 2: ?洢???????ݵ??ڲ?EEPROM(?վ?) */
-	if(DataType == 0x00 || DataType == 0x01) {
-	
-	}
-	
+    /* Power Down Event */
+    if(Voltage == 0){
+        /* Start Location Location */
+        index = EEPROM_OFFSET + (id - 1) * RouterDataUnitSize;
+        index += (RouterDataUnitSize) / 2;//voltage stores in right half
+        if(addressIdMapping[id - 1].voltageIndex > 10) {
+            addressIdMapping[id - 1].voltageIndex = 0;
+            addressIdMapping[id - 1].isVoltageFull = 1;//now EEPROM fulls
+        }
+        index += addressIdMapping[id - 1].voltageIndex * RouterDataItemLength;
+
+        Read_Current_Time(DS1307,CurrentTime,7);
+        WriteEEPROM(AT24C128,index,CurrentTime[YEAR]);
+        ++index;
+        WriteEEPROM(AT24C128,index,CurrentTime[MONTH]);
+        ++index;
+        WriteEEPROM(AT24C128,index,CurrentTime[DATE]);
+        ++index;
+        WriteEEPROM(AT24C128,index,CurrentTime[HOUR]);
+        ++index;
+        WriteEEPROM(AT24C128,index,CurrentTime[MINUTE]);
+        ++index;
+        WriteEEPROM(AT24C128,index,CurrentTime[SECOND]);
+
+        /* Increment Index(for next time) */
+        if(addressIdMapping[id - 1].voltageIndex >= 9){
+            addressIdMapping[id - 1].voltageIndex = 0;
+            addressIdMapping[id - 1].isVoltageFull = 1;
+        }
+        else addressIdMapping[id - 1].voltageIndex += 1;
+    } else {
+        #ifdef TestUSART1
+            USART0_Send_Byte(0x02);
+        #endif
+    }
 }
 /* ??ȡʵʱ??ѹ?????????? */
 unsigned int getRightNowData(volatile unsigned char *addr,unsigned char type){
@@ -537,7 +656,7 @@ unsigned int getRightNowData(volatile unsigned char *addr,unsigned char type){
         } else {
             Voltage = 255;
         }
-    }
+    } else return MYINT_MAX;//Error Code
 
     RealTimeQuery = 0;
 
@@ -598,7 +717,7 @@ unsigned int generalQueryData(unsigned char command,unsigned char *buf,unsigned 
                 }
             #endif
         }
-    }
+    } else result = MYINT_MAX;
 
 	RealTimeQuery = 0;
 
@@ -654,17 +773,13 @@ void ReadDataPackage(unsigned char ControlByte){
     volatile unsigned char identify[4] = {0};
     volatile unsigned char i = 0;
     volatile unsigned char replySize = 0;
-    volatile unsigned int temp,startAddr;
+    volatile unsigned int temp,tempID,startAddr;
+    volatile unsigned int Current;
     /*
      * 0x91 - no continue data(??ʱֻ????û?к???????????)
      * 0xB1 - has continue data(not finish yet)
      * ?????ֽڼ?0x80??????(?????ظ?)
      */
-
-    /* Get(Parse) Address */
-    for(i = 0;i < sizeof(myaddr);++i) {
-    	myaddr[i] = recData_485[i];
-    }
 
     /* Get idetifier - Command also*/
     for(i = 0;i < sizeof(identify);++i){
@@ -680,7 +795,9 @@ void ReadDataPackage(unsigned char ControlByte){
             ControlByte += 0x80;
             /* ?Ӳɼ?????ȡ??ǰ???? */
             if(identify[0] == 0x00) {
-                CurrentDataBlock_1.thisCurrent = getRightNowData(myaddr,0x01);
+                temp = getRightNowData(myaddr,0x01);
+                if(MYINT_MAX == temp) return;
+                CurrentDataBlock_1.thisCurrent = temp;
             } else {
                 //CurrentDataBlock_1.thisCurrent = getRightNowData(myaddr,0x01);
                 return;
@@ -697,7 +814,9 @@ void ReadDataPackage(unsigned char ControlByte){
             ControlByte += 0x80;
             /* Query Router for Results */
             ZigbeeTransmitBuf[0] = 0x00;
-            CurrentDataBlock_1.currentLeakTimes = generalQueryData(0x05,ZigbeeTransmitBuf,0x01);
+            temp = generalQueryData(0x05,ZigbeeTransmitBuf,0x01);
+            if(MYINT_MAX == temp) return;//no router with specific address found
+            CurrentDataBlock_1.currentLeakTimes = temp;
             /* Load Data to Transmit Buffer */
             replyBuffer_485[0] = 0x00;//LSBС??????Ĭ??Ϊ0
             replyBuffer_485[1] = DEC2HEX(CurrentDataBlock_1.currentLeakTimes % 100);
@@ -709,7 +828,9 @@ void ReadDataPackage(unsigned char ControlByte){
         else if(identify[1] == 0x02 && identify[0] == 0x00) {
             ControlByte += 0x80;
             ZigbeeTransmitBuf[0] = 0x00;
-            CurrentDataBlock_1.maxCurrent = generalQueryData(0x07,ZigbeeTransmitBuf,0x01);
+            temp = generalQueryData(0x07,ZigbeeTransmitBuf,0x01);
+            if(MYINT_MAX == temp) return;
+            CurrentDataBlock_1.maxCurrent = temp;
             replyBuffer_485[0] = 0x00;//LSBС??????Ĭ??Ϊ0
             replyBuffer_485[1] = DEC2HEX(CurrentDataBlock_1.maxCurrent % 100);
             replyBuffer_485[2] = DEC2HEX((CurrentDataBlock_1.maxCurrent / 100) % 100);
@@ -729,7 +850,9 @@ void ReadDataPackage(unsigned char ControlByte){
 			*/
 			ControlByte += 0x80;
             ZigbeeTransmitBuf[0] = 0x00;
-            CurrentDataBlock_1.avgCurrent = generalQueryData(0x06,ZigbeeTransmitBuf,0x01);
+            temp = generalQueryData(0x06,ZigbeeTransmitBuf,0x01);
+            if(MYINT_MAX == temp) return;
+            CurrentDataBlock_1.avgCurrent = temp;
             replyBuffer_485[0] = 0x00;//LSBС??????Ĭ??Ϊ0
             replyBuffer_485[1] = DEC2HEX(CurrentDataBlock_1.avgCurrent % 100);
             replyBuffer_485[2] = DEC2HEX((CurrentDataBlock_1.avgCurrent / 100) % 100);
@@ -742,7 +865,9 @@ void ReadDataPackage(unsigned char ControlByte){
             replyBuffer_485[0] = 0x00;//LSB
             /* Load Command */
             ZigbeeTransmitBuf[0] = 0x00;
-            CurrentDataBlock_1.todayPowerDownTimes = generalQueryData(10,ZigbeeTransmitBuf,0x01);
+            temp = generalQueryData(10,ZigbeeTransmitBuf,0x01);
+            if(MYINT_MAX == temp) return;
+            CurrentDataBlock_1.todayPowerDownTimes = temp;
             replyBuffer_485[1] = DEC2HEX(CurrentDataBlock_1.todayPowerDownTimes % 100);
             replyBuffer_485[2] = DEC2HEX((CurrentDataBlock_1.todayPowerDownTimes / 100) % 100);
             replyBuffer_485[3] = DEC2HEX(CurrentDataBlock_1.todayPowerDownTimes / 10000);//MSB
@@ -777,29 +902,51 @@ void ReadDataPackage(unsigned char ControlByte){
                 ControlByte += 0x80;
                 /* ????identify[0]??????һ????ʮ????¼ */
                 /* ??ֹʱ?? */
-                if(identify[0] > HistoryProblem.currentRecordIndex) {
-                    //temp ????????????
-                    temp = HISTORY_CACHE_SIZE - (identify[0] - HistoryProblem.currentRecordIndex);
-                } else {
-                    temp = HistoryProblem.currentRecordIndex - identify[0];
+                /* Current Abnormal Data(last 10 times) */
+                tempID = getRouterId(myaddr,sizeof(myaddr));
+                if(tempID == 0 || tempID > MaxRouterNumber) {
+                /* If Address is undefined */
+                    #ifdef TestUSART1
+                        USART0_Send_Byte(0x53);
+                        USART0_Send_Byte(0x05);
+                    #endif
+                    return;
                 }
-                replyBuffer_485[0] = HistoryProblem.currentRecord[temp].sSecond;//??
-                replyBuffer_485[1] = HistoryProblem.currentRecord[temp].sMinute;//??
-                replyBuffer_485[2] = HistoryProblem.currentRecord[temp].sHour;//ʱ
-                replyBuffer_485[3] = HistoryProblem.currentRecord[temp].sDate;//??
-                replyBuffer_485[4] = HistoryProblem.currentRecord[temp].sMonth;//??
-                replyBuffer_485[5] = HistoryProblem.currentRecord[temp].sYear;//??
+                /* Obtain currentIndex */
+                if(identify[0] > addressIdMapping[tempID - 1].currentIndex){
+                    if(addressIdMapping[tempID - 1].isCurrentFull == 1) {
+                        temp = HISTORY_CACHE_SIZE - (identify[0] - addressIdMapping[tempID - 1].currentIndex);
+                    } else return;
+                } else {
+                    temp = addressIdMapping[tempID - 1].currentIndex - identify[0];
+                }
+                temp = (temp * RouterDataItemLength) + ((tempID - 1) * RouterDataUnitSize) + EEPROM_OFFSET;
+                replyBuffer_485[5] = ReadEEPROM(AT24C128,temp);//YEAR
+                replyBuffer_485[14] = replyBuffer_485[5];
+                ++temp;
+                replyBuffer_485[4] = ReadEEPROM(AT24C128,temp);//MONTH
+                replyBuffer_485[13] = replyBuffer_485[4];
+                ++temp;
+                replyBuffer_485[3] = ReadEEPROM(AT24C128,temp);//DATE
+                replyBuffer_485[12] = replyBuffer_485[3];
+                ++temp;
+                replyBuffer_485[2] = ReadEEPROM(AT24C128,temp);//HOUR
+                replyBuffer_485[11] = replyBuffer_485[2];
+                ++temp;
+                replyBuffer_485[1] = ReadEEPROM(AT24C128,temp);//MINUTE
+                replyBuffer_485[10] = replyBuffer_485[1];
+                ++temp;
+                replyBuffer_485[0] = ReadEEPROM(AT24C128,temp);//SECOND
+                replyBuffer_485[9] = replyBuffer_485[0];
+                ++temp;
                 /* ©????????ֵ */
+                
+                Current = ReadEEPROM(AT24C128,temp);
+                ++temp;
+                Current = (Current * 256) + ReadEEPROM(AT24C128,temp);;
                 replyBuffer_485[6] = 0x00;//
-                replyBuffer_485[7] = DEC2HEX((HistoryProblem.currentRecord[temp].maxCurrent % 10) * 10);//
-                replyBuffer_485[8] = DEC2HEX(HistoryProblem.currentRecord[temp].maxCurrent / 10);//
-                /* ??ʼʱ?? */
-                replyBuffer_485[9] = HistoryProblem.currentRecord[temp].sSecond;//??
-                replyBuffer_485[10] = HistoryProblem.currentRecord[temp].sMinute;//??
-                replyBuffer_485[11] = HistoryProblem.currentRecord[temp].sHour;//ʱ
-                replyBuffer_485[12] = HistoryProblem.currentRecord[temp].sDate;//??
-                replyBuffer_485[13] = HistoryProblem.currentRecord[temp].sMonth;//??
-                replyBuffer_485[14] = HistoryProblem.currentRecord[temp].sYear;//??
+                replyBuffer_485[7] = DEC2HEX((Current % 10) * 10);//
+                replyBuffer_485[8] = DEC2HEX(Current / 10);//
 
                 replySize = 15;
             } else {
@@ -868,20 +1015,49 @@ void ReadDataPackage(unsigned char ControlByte){
                 } else {
                     temp = HistoryProblem.voltageRecordIndex - identify[0];
                 }
-                replyBuffer_485[0] = HistoryProblem.voltageRecord[temp].sSecond;//??
-                replyBuffer_485[1] = HistoryProblem.voltageRecord[temp].sMinute;//??
-                replyBuffer_485[2] = HistoryProblem.voltageRecord[temp].sHour;//ʱ
-                replyBuffer_485[3] = HistoryProblem.voltageRecord[temp].sDate;//??
-                replyBuffer_485[4] = HistoryProblem.voltageRecord[temp].sMonth;//??
-                replyBuffer_485[5] = HistoryProblem.voltageRecord[temp].sYear;//??
-                /* ??ʼʱ?? */
-                replyBuffer_485[6] = HistoryProblem.voltageRecord[temp].sSecond;//??
-                replyBuffer_485[7] = HistoryProblem.voltageRecord[temp].sMinute;//??
-                replyBuffer_485[8] = HistoryProblem.voltageRecord[temp].sHour;//ʱ
-                replyBuffer_485[9] = HistoryProblem.voltageRecord[temp].sDate;//??
-                replyBuffer_485[10] = HistoryProblem.voltageRecord[temp].sMonth;//??
-                replyBuffer_485[11] = HistoryProblem.voltageRecord[temp].sYear;//??
+                /* Power Down Event Data(last 10 times) */
+                tempID = getRouterId(myaddr,sizeof(myaddr));
+                if(tempID == 0 || tempID > MaxRouterNumber) {
+                /* If Address is undefined */
+                    #ifdef TestUSART1
+                        USART0_Send_Byte(0x04);
+                    #endif
+                    return;
+                }
+                /* Obtain voltageIndex */
+                if(identify[0] > addressIdMapping[tempID - 1].voltageIndex){
+                    if(addressIdMapping[tempID - 1].isVoltageFull == 1) {
+                        temp = HISTORY_CACHE_SIZE - (identify[0] - addressIdMapping[tempID - 1].voltageIndex);
+                    } else {
+                        #ifdef TestUSART1
+                            USART0_Send_Byte(addressIdMapping[tempID - 1].voltageIndex);
+                            USART0_Send_Byte(0x06);
+                        #endif
+                        return;
+                    }
+                } else {
+                    temp = addressIdMapping[tempID - 1].voltageIndex - identify[0];
+                }
+                temp = (temp * RouterDataItemLength) + ((tempID - 1) * RouterDataUnitSize) + EEPROM_OFFSET + (RouterDataUnitSize) / 2;
 
+                replyBuffer_485[5] = ReadEEPROM(AT24C128,temp);//YEAR
+                ++temp;
+                replyBuffer_485[4] = ReadEEPROM(AT24C128,temp);//MONTH
+                ++temp;
+                replyBuffer_485[3] = ReadEEPROM(AT24C128,temp);//DATE
+                ++temp;
+                replyBuffer_485[2] = ReadEEPROM(AT24C128,temp);//HOUR
+                ++temp;
+                replyBuffer_485[1] = ReadEEPROM(AT24C128,temp);//MINUTE
+                ++temp;
+                replyBuffer_485[0] = ReadEEPROM(AT24C128,temp);//SECOND
+                /* ??ʼʱ?? */
+                replyBuffer_485[6] = replyBuffer_485[0];
+                replyBuffer_485[7] = replyBuffer_485[1];
+                replyBuffer_485[8] = replyBuffer_485[2];
+                replyBuffer_485[9] = replyBuffer_485[3];
+                replyBuffer_485[10] = replyBuffer_485[4];
+                replyBuffer_485[11] = replyBuffer_485[5];
 
                 replySize = 12;
             }
@@ -973,7 +1149,9 @@ void ReadDataPackage(unsigned char ControlByte){
         else if(identify[2] == 0x00 && identify[1] == 0x0E && identify[0] == 0x01) {
             ControlByte += 0x80;
             ZigbeeTransmitBuf[0] = 0x00;
-            ParameterIdentifier.CurrentThreshold = generalQueryData(0x01,ZigbeeTransmitBuf,1);
+            temp = generalQueryData(0x01,ZigbeeTransmitBuf,1);
+            if(MYINT_MAX == temp) return;
+            ParameterIdentifier.CurrentThreshold = temp;
             replyBuffer_485[0] = 0x00;
             replyBuffer_485[1] = 0x00;
             replyBuffer_485[2] = DEC2HEX(ParameterIdentifier.CurrentThreshold % 100);
@@ -983,7 +1161,9 @@ void ReadDataPackage(unsigned char ControlByte){
         else if(identify[2] == 0x00 && identify[1] == 0x0E && identify[0] == 0x02) {
             ControlByte += 0x80;
             ZigbeeTransmitBuf[0] = 0x00;
-            ParameterIdentifier.CurrentThreshold = generalQueryData(0x01,ZigbeeTransmitBuf,1);
+            temp = generalQueryData(0x01,ZigbeeTransmitBuf,1);
+            if(MYINT_MAX == temp) return;
+            ParameterIdentifier.CurrentThreshold = temp;
             replyBuffer_485[0] = 0x00;
             replyBuffer_485[1] = 0x00;
             replyBuffer_485[2] = DEC2HEX(ParameterIdentifier.CurrentThreshold % 100);
@@ -993,7 +1173,9 @@ void ReadDataPackage(unsigned char ControlByte){
         else if(identify[2] == 0x00 && identify[1] == 0x0E && identify[0] == 0x03) {
             ControlByte += 0x80;
             ZigbeeTransmitBuf[0] = 0x00;
-            ParameterIdentifier.VoltageUpperRange = generalQueryData(0x02,ZigbeeTransmitBuf,1) + 220;
+            temp = generalQueryData(0x02,ZigbeeTransmitBuf,1);
+            if(MYINT_MAX == temp) return;
+            ParameterIdentifier.VoltageUpperRange = temp + 220;
             //USART0_Send_Byte(ParameterIdentifier.VoltageUpperRange - 220);
             temp = ParameterIdentifier.VoltageUpperRange;
             replyBuffer_485[0] = DEC2HEX((temp % 10) * 10);
@@ -1004,7 +1186,10 @@ void ReadDataPackage(unsigned char ControlByte){
         else if(identify[2] == 0x00 && identify[1] == 0x0E && identify[0] == 0x04) {
             ControlByte += 0x80;
             ZigbeeTransmitBuf[0] = 0x00;
-            ParameterIdentifier.VoltageDownRange = 220 - generalQueryData(0x03,ZigbeeTransmitBuf,1);
+            
+            temp = generalQueryData(0x03,ZigbeeTransmitBuf,1);
+            if(MYINT_MAX == temp) return;
+            ParameterIdentifier.VoltageDownRange = 220 - temp;
             temp = ParameterIdentifier.VoltageDownRange;
             replyBuffer_485[0] = DEC2HEX((temp % 10) * 10);
             replyBuffer_485[1] = DEC2HEX(temp / 10);
@@ -1022,7 +1207,9 @@ void ReadDataPackage(unsigned char ControlByte){
         else if(identify[2] == 0x09 && identify[1] == 0x0C && identify[0] == 0x01) {
             ControlByte += 0x80;
             ZigbeeTransmitBuf[0] = 0x00;
-            ParameterIdentifier.VoltageUpperRange = generalQueryData(0x02,ZigbeeTransmitBuf,1) + 220;
+            temp = generalQueryData(0x02,ZigbeeTransmitBuf,1);
+            if(MYINT_MAX == temp) return;
+            ParameterIdentifier.VoltageUpperRange = temp + 220;
             temp = ParameterIdentifier.VoltageUpperRange;
             replyBuffer_485[0] = DEC2HEX((temp % 10) * 10);
             replyBuffer_485[1] = DEC2HEX(temp / 10);
@@ -1032,7 +1219,9 @@ void ReadDataPackage(unsigned char ControlByte){
         else if(identify[2] == 0x09 && identify[1] == 0x0C && identify[0] == 0x02) {
             ControlByte += 0x80;
             ZigbeeTransmitBuf[0] = 0x00;
-            ParameterIdentifier.VoltageDownRange = 220 - generalQueryData(0x03,ZigbeeTransmitBuf,1);
+            temp = generalQueryData(0x03,ZigbeeTransmitBuf,1);
+            if(MYINT_MAX == temp) return;
+            ParameterIdentifier.VoltageDownRange = 220 - temp;
             temp = ParameterIdentifier.VoltageDownRange;
             replyBuffer_485[0] = DEC2HEX((temp % 10) * 10);
             replyBuffer_485[1] = DEC2HEX(temp / 10);
@@ -1295,17 +1484,33 @@ void WriteDataPackage(unsigned char ControlByte_485,unsigned char len) {
     }
 }
 /* 
-** Request Dispatcher
+** Process(Store) Zigbee End Received Data
 */
 void ReceivedDataProcess_485(int num) {
-	int i = 0;
+	unsigned int i = 0;
+    unsigned char temp;
 	/* Chech Start Byte */	
 	if(recData_485[sizeof(myaddr)] != StartByte_485) {
 		#ifdef DEBUG
-		USART0_Send_Byte(0x10);
+		    USART0_Send_Byte(0x10);
 		#endif
 		return;
 	}
+
+    /* Get(Parse) Address */
+    for(i = 0;i < sizeof(myaddr);++i) {
+    	myaddr[i] = recData_485[i];
+    }
+    
+    /* Router Present ?  */
+    ZigbeeTransmitBuf[0] = 0x00;
+    temp = generalQueryData(1,ZigbeeTransmitBuf,1);
+    if(MYINT_MAX == temp){
+        #ifdef DEBUG
+            USART0_Send_Byte(0x11);
+        #endif
+        return;//Router Not Exist , Reply Nothing
+    }
     /* ??ʼ????У???? */
 	CheckSum_485 = StartByte_485;
 	for(i = 0;i < num - 1;++i) {
@@ -1471,8 +1676,14 @@ int main() {
                 }
 		    
 				LEDON();
+                #ifdef TestUSART1
+                    WRITE485;
+                #endif
 				if(RealTimeQuery == 0) StoreZigbeeReceivedData();//Ignore Query Staus
-				LEDOFF();
+				#ifdef TestUSART1
+                    READ485;
+                #endif
+                LEDOFF();
 				//USART0_Send_Byte(0x35);
 				//USART0_Send_Byte(0x0A);
 		    }
