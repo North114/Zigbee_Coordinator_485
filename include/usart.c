@@ -4,11 +4,12 @@
 /*
 Initialize USART0
 */
-void USART0_Init(unsigned int baud)
-{
+void USART0_Init(unsigned int baud) {
 	UCSR0A = 0x00;//defalut value
 	UCSR0B = 0x00;//USART Control and Status Register B 		    //¿ØÖÆ¼Ä´æÆ÷ÇåÁã
-	UCSR0C = 3<<UCSZ00;//8 bit data
+	UCSR0C = 3 << UCSZ00;//8 bit data
+    /* Add Odd Parity(Page 193) */
+    //UCSR0C |= 2 << UPM00;
                                                         //Ñ¡ÔñUCSRC£¬Òì²½Ä£Ê½£¬½ûÖ¹                        
                                                      //   Ð£Ñé£¬1Î»Í£Ö¹Î»£¬8Î»Êý¾ÝÎ»
 	baud = F_CPU/16/baud - 1	;   //²¨ÌØÂÊ×î´óÎª65K
