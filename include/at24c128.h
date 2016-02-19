@@ -7,9 +7,10 @@
 	
 	#include <util/delay.h>
 	#include <avr/interrupt.h>
-	#include "iic.h"
-
-	#define AT24C128 0x50//define 7-bit slave device address.
+    #include "iic.h"
+    #include "usart.h"
+	
+    #define AT24C128 0x50//define 7-bit slave device address.
 	#define BlockLength 15
 	#define EEpromSize 16384//Address Range: 0 ~ 16383
 	#define ReservedByteNum 34

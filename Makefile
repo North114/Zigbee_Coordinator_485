@@ -9,16 +9,19 @@ HEADERS=include/ds1307.c include/usart.c include/at24c128.c include/init.c
 ## Zigbee_Coordinator_July_24.c
 
 SOURCE=ZigbeeCoordinator_485.c
+#SOURCE=temp.c
 OBJECT=$(SOURCE:.c=.o)
 OUTPUT=output.hex
 
 all:$(OUTPUT)
 
+$(OUTPUT):$(OBJECT)
+	$(CP) $(TFLAGS) $< $@
+
 $(OBJECT):$(SOURCE)
 	$(CC) -mmcu=atmega644p $(CFLAGS) -o $@ $< $(HEADERS)
 
-output.hex:$(OBJECT)
-	$(CP) $(TFLAGS) $< $@
+#$(SOURCE):$(HEADERS)
 
 ## dl for down load
 dl:

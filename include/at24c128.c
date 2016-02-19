@@ -1,7 +1,7 @@
 #include "at24c128.h"
 
 /* 外部定义的函数,省去了include那个头文件 */
-extern void USART0_Send_Byte(unsigned char);
+//extern void USART0_Send_Byte(unsigned char);
 
 /*
 Write 1 byte data to EEPROM

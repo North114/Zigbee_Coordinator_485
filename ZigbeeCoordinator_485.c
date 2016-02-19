@@ -185,8 +185,8 @@ volatile struct VoltagePassRate {
 struct AddressIdMapping {
     unsigned char address[6];
     unsigned char id;
-}AddressIdMapping;
-AddressIdMapping addressIdMapping[15];//give every router 1000 byte space to store history data , totally 15 router
+};
+struct AddressIdMapping addressIdMapping[15];//give every router 1000 byte space to store history data , totally 15 router , we will fill this array when we received data from routers
 
 /* ?洢????15?յĵ?ѹ?ϸ??????? */
 volatile struct VoltagePassRate voltagePassRate[15];

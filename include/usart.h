@@ -1,10 +1,10 @@
 #ifndef USART_H
 	#define USART_H
-
-	#ifndef F_CPU
-		#define F_CPU 16000000UL  /* 16 MHz CPU clock */
-	#endif
-	
+    
+    #ifndef F_CPU
+        #define F_CPU 16000000UL
+    #endif
+    #include <avr/io.h>
 	void USART0_Init(unsigned int baud);
 	void USART1_Init(unsigned int baud);
 
