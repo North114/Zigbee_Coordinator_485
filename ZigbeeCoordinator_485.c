@@ -1616,7 +1616,7 @@ int main() {
 	
     sei();            //Enable Gloabal Interrupt
     _delay_ms(50);
-    
+
 	#ifdef DEBUG
 		WRITE485;
 		USART0_Send_Byte(0x55);//for debug Watch Dog Timer
@@ -1734,7 +1734,6 @@ int main() {
 			t = ReadDS1307(DS1307,HOUR);
 			if(t < ThisHour) {
 				/* ?Ѿ??ǵڶ????? OR ϵͳ?ո????? */
-				ThisHour = t;//???µ?ǰСʱ??
 				/* ??CurrentDataBlock_1 ?еļ???λ?????? */
 				CurrentDataBlock_1.currentLeakTimes = 0;
 				CurrentDataBlock_1.maxCurrent = 0;
@@ -1753,6 +1752,7 @@ int main() {
                 }
                 USART1_Send_Byte(EndByte_Zigbee);
 			}
+            ThisHour = t;//???µ?ǰСʱ??
 		}
 
 		//_delay_ms(1);//why delay?
