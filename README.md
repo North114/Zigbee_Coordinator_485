@@ -2,9 +2,9 @@
 
 ###准备工作###
 1. 需要**Linux**系统做开发环境；可以
-* 在**Windows**下安装虚拟机
-* 安装双系统
-* 直接安装**Linux**单系统
+    * 在**Windows**下安装虚拟机
+    * 安装双系统
+    * 直接安装**Linux**单系统
 推荐使用**Ubuntu**或者**Debian**
 2. 安装编译(**avr-gcc**)和程序下载(**avrdude**)环境，详见[环境配置文件](./Configs/EnvironmetEstablish.txt)
 ，这是在**Ubuntu**下的配置方法，其他系统请自行Google之
