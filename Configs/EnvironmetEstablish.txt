@@ -1,0 +1,35 @@
+首先要明确，我们在Ubuntu(或者Linux)上开发AVR单片机应包括两大部分：
+程序编译、程序下载。
+
+程序编译使用Linux下的编译器——avr-gcc，通过以下指令安装：
+        sudo apt-get install gcc-avr   //这是avr的交叉编译器
+        sudo apt-get install avr-libc    //这是编译要用的库
+		另外还有一个工具，目前感觉没什么用，先记下来
+		sudo apt-get install gdb-avr   //gdb反向调试工具反汇编有木有
+下载程序：
+	sudo apt-get install avrdude
+
+
+编译指令：
+
+avr-gcc -mmcu=atmega328p -Wall -Os -o main.o main.c
+
+
+复制到HEX文件里面：
+
+avr-objcopy -j .text -j .data -O ihex  main.o main.hex
+
+
+下载程序到单片机：
+
+sudo avrdude -p m328p -c usbasp -e -U flash:w:main.hex
+
+其中
+-p 表示选择芯片，例如m328p
+-c 选择下载器，例如usbasp
+-e 表示烧录前清空
+-U 表示存储器操作类型，使用方式：-U memtype:op:filename[:format]
+详见  man avrdude
+
+
+
