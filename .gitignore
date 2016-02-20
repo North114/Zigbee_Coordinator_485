@@ -3,3 +3,6 @@
 
 #all hex file
 *.hex
+
+#
+.*
