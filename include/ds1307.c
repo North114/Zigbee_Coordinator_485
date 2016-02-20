@@ -182,7 +182,7 @@ unsigned char Read_Current_Time(unsigned char DevAddr,unsigned char *p,unsigned 
 /* 
 ** 初始化日期时间
 */
-volatile void InitDateTime(unsigned char s,unsigned char m,unsigned char h,unsigned char w,unsigned char d,unsigned char mon,unsigned char y) {
+void InitDateTime(unsigned char s,unsigned char m,unsigned char h,unsigned char w,unsigned char d,unsigned char mon,unsigned char y) {
 	WriteDS1307(DS1307,0x00,s);//second
 	_delay_ms(10);
 	WriteDS1307(DS1307,0x01,m);//minute
@@ -201,7 +201,7 @@ volatile void InitDateTime(unsigned char s,unsigned char m,unsigned char h,unsig
 /*
 ** 初始化日期
 */
-volatile void InitDate(unsigned char y,unsigned char mon,unsigned char d,unsigned char w) {
+void InitDate(unsigned char y,unsigned char mon,unsigned char d,unsigned char w) {
 	WriteDS1307(DS1307,0x03,w);//day in a week
 	_delay_ms(10);
 	WriteDS1307(DS1307,0x04,d);//day
@@ -214,7 +214,7 @@ volatile void InitDate(unsigned char y,unsigned char mon,unsigned char d,unsigne
 /*
 ** 初始化时间
 */
-volatile void InitTime(unsigned char h,unsigned char m,unsigned char s){
+void InitTime(unsigned char h,unsigned char m,unsigned char s){
 	WriteDS1307(DS1307,0x00,s);//second
 	_delay_ms(10);
 	WriteDS1307(DS1307,0x01,m);//minute
