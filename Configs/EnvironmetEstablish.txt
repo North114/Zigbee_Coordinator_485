@@ -9,19 +9,18 @@
 下载程序：
 	sudo apt-get install avrdude
 
+下面是程序下载的命令，分三个步骤，但是目前我们已经通过Makefile文件来
+进行程序的编译和下载了，所以，下面的命令仅供参考
 
 编译指令：
-
 avr-gcc -mmcu=atmega328p -Wall -Os -o main.o main.c
 
 
 复制到HEX文件里面：
-
 avr-objcopy -j .text -j .data -O ihex  main.o main.hex
 
 
 下载程序到单片机：
-
 sudo avrdude -p m328p -c usbasp -e -U flash:w:main.hex
 
 其中
@@ -29,7 +28,4 @@ sudo avrdude -p m328p -c usbasp -e -U flash:w:main.hex
 -c 选择下载器，例如usbasp
 -e 表示烧录前清空
 -U 表示存储器操作类型，使用方式：-U memtype:op:filename[:format]
-详见  man avrdude
-
-
-
+详见 man avrdude

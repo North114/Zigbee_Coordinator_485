@@ -1,16 +1,20 @@
-##采集器程序(RS485接口)##
+##集中器(RS485接口)##
 
 ###准备工作###
-1.需要Linux系统做开发环境；可以在Windows下安装虚拟机或者安装双系统或者直接安装
-Linux单系统，推荐使用Ubuntu或者Debian
-2.安装编译(avr-gcc)和程序下载(avrdude)环境，详见[环境配置文件](./Configs/EnvironmetEstablish.txt)，这是在Ubuntu下的配置方法，其他系统请自行Google
+1. 需要**Linux**系统做开发环境；可以在Windows下安装虚拟机或者安装双系统或者直接安装
+Linux单系统，推荐使用**Ubuntu**或者**Debian**
+2. 安装编译(**avr-gcc**)和程序下载(**avrdude**)环境，详见[环境配置文件](./Configs/EnvironmetEstablish.txt)
+，这是在Ubuntu下的配置方法，其他系统请自行Google之
 
 ###功能简介###
-[主程序](./ZigbeeCoordinator_485.c)
+[主程序](./ZigbeeCoordinator_485.c)的主要功能是通过串口1连接**ZigBee**模块，和所有采集器通信，
+接收采集器发送来的数据，并向采集器发送查询指令；除此之外，要通过串口0连接**RS485**接口来和查
+询数据的终端设备通信，接受查询终端发来的查询指令，并通过**RS485**接口回复查询终端数据
 
 ###程序主体介绍###
+[主程序](./ZigbeeCoordinator_485.c)中的程序入口是main函数，函数中先进行初始化，然后进入while
+循环，查询**ZigBee**是否收到采集器的数据或者**RS485**接口是否接收到数据，并对接收到的数据进行处理
 
-
-##其他##
-1.vim中通过set encoding=utf-8 来设置文本显示的编码，通过set fileencoding=utf-8来
+###其他###
+1. vim中通过set encoding=utf-8 来设置文本显示的编码，通过set fileencoding=utf-8来
 设置文件保存的编码
