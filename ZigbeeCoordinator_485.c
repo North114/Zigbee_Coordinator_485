@@ -35,8 +35,6 @@ date:03-17-2015
 #include "include/init.h"
 #include "include/485.h"
 
-//#define DEBUG
-//#define TestUSART1
 /* Zigbee Related Macro */
 /** StartByte_Zigbee + UserIDByte + LeakageValueByteMSB + LeakageValueByteLSB
 + VoltageMSB + VoltagelSB + EndByte_Zigbee**/
@@ -1488,7 +1486,7 @@ void WriteDataPackage(unsigned char ControlByte_485,unsigned char len) {
 */
 void ReceivedDataProcess_485(int num) {
 	unsigned int i = 0;
-    unsigned char temp;
+    unsigned int temp;
 	/* Chech Start Byte */	
 	if(recData_485[sizeof(myaddr)] != StartByte_485) {
 		#ifdef DEBUG
