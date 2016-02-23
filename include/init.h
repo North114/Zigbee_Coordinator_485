@@ -5,7 +5,9 @@
     #include "usart.h"    
 
 	#define T0IniVal 55
-	
+    
+    #define FEED_DOG (__asm__ __volatile__ ("wdr"))
+
 	void InitWatchDogTimer();
 	void Timer0_Init();
     inline unsigned char setBit(unsigned char d,unsigned char n);

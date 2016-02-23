@@ -40,7 +40,7 @@ date:03-17-2015
 + VoltageMSB + VoltagelSB + EndByte_Zigbee**/
 #define recBufferSize_Zigbee 25// larger than PackLen
 #define Zigbee_PackLen 13 // Length + Address(6) + DeviceId + Current(2) + Voltage(2) + EventType
-#define Zigbee_AckLen 12
+#define Zigbee_AckLen 13
 
 #define StartByte_Zigbee 0xAA
 #define EndByte_Zigbee 0x75 //End byte should less than 128,since it's a character
@@ -55,7 +55,7 @@ date:03-17-2015
 #define HISTORY_DATA 0x01
 #define FINAL_PACKAGE 0x80
 #define COORDINATOR_ID 2
-#define QUERYRETRYTIME 3
+#define QUERYRETRYTIME 1
 
 /* 485 Related Macro */
 #define recBufferSize_485 256// larger than PackLen
@@ -96,7 +96,7 @@ volatile unsigned char index_Zigbee = 0;
 volatile unsigned char recNum_Zigbee = 0;
 volatile unsigned char recBuffer_Zigbee[recBufferSize_Zigbee];
 
-volatile unsigned char ACK_Zigbee[Zigbee_AckLen] = {StartByte_Zigbee,0x0A,0,0,0,0,0,0,0x04,0,0,EndByte_Zigbee};
+volatile unsigned char ACK_Zigbee[Zigbee_AckLen] = {StartByte_Zigbee,0x0B,0,0,0,0,0,0,0,0x04,0,0,EndByte_Zigbee};
 
 /* GPRS Relatted Variable Defination */
 volatile unsigned char startFlag_GPRS = 0,recFlag_GPRS = 0;//add a 'volatile' is very impportant
@@ -181,29 +181,30 @@ struct ParameterIdentifier {
 }ParameterIdentifier = {10,240,200};
 
 /* ??ѹ?ϸ???????ָ??(?? 1-6) */
-volatile struct OccurTime {
+struct OccurTime {
     unsigned char month;
     unsigned char date;
     unsigned char hour;
     unsigned char minute;
-}; 
+};
 
-volatile struct VoltagePassRate {
+struct VoltagePassRate {
     unsigned int maxVoltage;
     struct OccurTime maxVoltageOccureTime;  
     unsigned int minVoltage;
     struct OccurTime minVoltageOccureTime;
 };
 
-typedef struct AddressIdMapping {
+typedef struct {
     unsigned char address[6];//Router Address
     unsigned char id;//Router ID
     unsigned char currentIndex;//0 ~ 9
     unsigned char voltageIndex;//0 ~ 9
     unsigned char isCurrentFull;//1 or 0
     unsigned char isVoltageFull;//1 or 0
-};
-struct AddressIdMapping addressIdMapping[MaxRouterNumber];
+}AddressIdMapping;
+
+AddressIdMapping addressIdMapping[MaxRouterNumber];
 //give every router 100 * 2 byte space to store history data , 100 byte for current data and 100 byte for volatge data
 
 /* ?洢????15?յĵ?ѹ?ϸ??????? */
@@ -269,6 +270,10 @@ void initIO() {
 	/* 1101 1111 
 	   we need to set and clear bit one ny one !!!!!!!
 	*/
+    
+    PORTD = setBit(PORTD,5);
+    PORTD = clearBit(PORTD,4);
+
 	/* make 485 enable pin Output pin */
 	DDRB |= 0x10;//485 enable pin
 }
@@ -407,10 +412,6 @@ ISR(TIMER0_OVF_vect)//Timer0 Overflow Interrupt Vector
 	if(T0_Count >= 624) {//about 2 second
 		T0_Count = 0;
 
-		/* feed dog every 2 second */
-		
-        __asm__ __volatile__ ("wdr");//Watch Dog Timer Reset ??
-
 		//process down operation per 2 seconds,so we can finish all down operation in 10 seconds
 		modTemp = bisecondCount % CACHE_SPACE;//Router Number
 		if(cache_ttl[modTemp] != 0) {
@@ -427,14 +428,28 @@ ISR(TIMER0_OVF_vect)//Timer0 Overflow Interrupt Vector
 			oneMinuteCount = 0;
 			oneMinuteFlag = 1;
 		}
-
-
-
-
-
 		//TIMSK0 = (0<<TOIE0);//DISABLE TIMER 0 OVERFLOW INTERRUPT(@page 111)
 	}
 	TCNT0 = T0IniVal;//Timing/Counter Register
+}
+/*
+** Send Acknowladgement to Zigbee
+*/
+void SendACKtoZigBee(volatile unsigned char *addr,unsigned char id,unsigned int current){
+    unsigned char i;
+    /* then router stop send data to coordinator */
+    for(i = 0; i < sizeof(myaddr);++i) {
+        ACK_Zigbee[i + 2] = *(addr + i);
+    }
+    ACK_Zigbee[sizeof(myaddr) + 2] = id;
+    ACK_Zigbee[sizeof(myaddr) + 3] = 0x04;//command byte
+    ACK_Zigbee[sizeof(myaddr) + 4] = current / 256;//leak current high byte
+    ACK_Zigbee[sizeof(myaddr) + 5] = current % 256;//leak current low byte
+
+    for(i = 0;i < Zigbee_AckLen;i++)
+    {
+        USART1_Send_Byte(ACK_Zigbee[i]);
+    } 
 }
 /*
 ** Send Packet to GPRS
@@ -454,7 +469,7 @@ void SendtoGPRS(unsigned int id,unsigned int current,unsigned int voltage,unsign
 /*
 ** Get Router Id by Address
 */
-unsigned char getRouterId(unsigned char *buf,unsigned char len){
+unsigned char getRouterId(volatile unsigned char *buf,unsigned char len){
     volatile unsigned char i,j;
     
     for(i = 0;i < MaxRouterNumber;++i){
@@ -463,7 +478,6 @@ unsigned char getRouterId(unsigned char *buf,unsigned char len){
             if(j == len - 1)return (i + 1);
         }
     }
-
     return 255;
 }
 /*
@@ -471,8 +485,9 @@ unsigned char getRouterId(unsigned char *buf,unsigned char len){
 ** We need to store data in different way
 */
 void StoreZigbeeReceivedData() {
-	unsigned int temp,i;
-    unsigned char ReadTimeStatus,WriteEEPROMStatus;
+	unsigned int i;
+    //unsigned int temp;
+    //unsigned char ReadTimeStatus,WriteEEPROMStatus;
 	unsigned int id,Current,Voltage;
 	unsigned char DataType;
 	unsigned int index;
@@ -597,16 +612,15 @@ void StoreZigbeeReceivedData() {
         if(DataType == 0x03) DataType = VOLTAGE_MONITOR;//Voltage Monitor Data Type
         else DataType = HISTORY_DATA;
         /* Transmit Data to GPRS Server Side */
-        SendtoGPRS(id,Current,Voltage,DataType);
+        SendtoGPRS(id,Current * 100,Voltage * 100,DataType);
     }
 }
 /* ??ȡʵʱ??ѹ?????????? */
-unsigned int getRightNowData(volatile unsigned char *addr,unsigned char type,unsigned int *c,unsigned int *v){
+unsigned int getRightNowData(volatile unsigned char *addr,unsigned char id,unsigned char type,unsigned int *c,unsigned int *v){
     unsigned int Current = 0,Voltage = 0;
     unsigned char i;
 
     RealTimeQuery = 1;
-    /* ??????????????,ֱ??ȡ?????????? */
     /* if there are data cached here */
     /*
     if(cache_ttl[id] > 0) {
@@ -617,36 +631,37 @@ unsigned int getRightNowData(volatile unsigned char *addr,unsigned char type,uns
     /* else , we just query router for data */
     /* Send Query Command to Routers */				
     USART1_Send_Byte(StartByte_Zigbee);
-    USART1_Send_Byte(0x09);//package length
+    USART1_Send_Byte(0x0A);//package length
     for(i = 0;i < sizeof(myaddr);++i){
-        USART1_Send_Byte(myaddr[i]);
+        USART1_Send_Byte(*(addr + i));
     }
+    USART1_Send_Byte(id);
     USART1_Send_Byte(ZigbeeQueryByte);//Command Byte
     USART1_Send_Byte(0x00);
     USART1_Send_Byte(EndByte_Zigbee);
-    /* Wait for ACK */
+    /* Wait for ACK for 1.5 second */
     for(i = 0;i < QueryPeriod;++i) {
         if(1 == recFlag_Zigbee) break;
         else _delay_ms(50);
     }
+
+    //feed dog
+    __asm__ __volatile__ ("wdr");//Watch Dog Timer Reset ??
+    
     /* Process Received Data */
     if(1 == recFlag_Zigbee) {
         recFlag_Zigbee = 0;
         /* --- Step 1: Send ACK_Zigbee to ZigBee router --- */
         /* then router stop send data to coordinator */
-        for(i = 0; i < sizeof(myaddr);++i) {
-            ACK_Zigbee[i + 2] = myaddr[i];
-        }
-        ACK_Zigbee[sizeof(myaddr) + 2] = 0x04;//command byte
-        ACK_Zigbee[sizeof(myaddr) + 3] = recBuffer_Zigbee[sizeof(myaddr) + 2];//leak current high byte
-        ACK_Zigbee[sizeof(myaddr) + 4] = recBuffer_Zigbee[sizeof(myaddr) + 3];//leak current low byte
 
-        for(i = 0;i < Zigbee_AckLen;i++)
-        {
-            USART1_Send_Byte(ACK_Zigbee[i]);
+        for(i = 0; i < sizeof(myaddr);++i) {
+            myaddr[i] = recBuffer_Zigbee[i + 1];
         }
 
         Current = recBuffer_Zigbee[sizeof(myaddr) + 2] * 256 + recBuffer_Zigbee[sizeof(myaddr) + 3];
+        /* Send back Acknowladgement */
+        SendACKtoZigBee(myaddr,recBuffer_Zigbee[sizeof(myaddr) + 1],Current);
+        
         if(c != NULL) *(c) = Current;
         if(Current < 25500) {
             Current = Current / 100;
@@ -660,6 +675,7 @@ unsigned int getRightNowData(volatile unsigned char *addr,unsigned char type,uns
         } else {
             Voltage = 255;
         }
+
     } else {
         RealTimeQuery = 0;
         return MYINT_MAX;//Error Code
@@ -678,17 +694,18 @@ unsigned int getRightNowData(volatile unsigned char *addr,unsigned char type,uns
 ** use return value or global variable to return queried data
 ** pointer p not used yet
 */
-unsigned int generalQueryData(unsigned char command,unsigned char *buf,unsigned char len) {
+unsigned int generalQueryData(volatile unsigned char command,volatile unsigned char *buf,volatile unsigned char len) {
 	unsigned int result = 0;
 	unsigned char i;
 
 	RealTimeQuery = 1;
 	/* send query command */
 	USART1_Send_Byte(StartByte_Zigbee);
-    USART1_Send_Byte(8 + len);//package length
+    USART1_Send_Byte(9 + len);//package length
     for(i = 0;i < sizeof(myaddr);++i){
     	USART1_Send_Byte(myaddr[i]);
     }
+    USART1_Send_Byte(0);//Device ID
     USART1_Send_Byte(command);//Command Byte
     for(i = 0;i < len;++i){
         USART1_Send_Byte(*(buf + i));
@@ -705,6 +722,9 @@ unsigned int generalQueryData(unsigned char command,unsigned char *buf,unsigned 
         }
         else _delay_ms(50);
     }
+
+    //feed dog
+    __asm__ __volatile__ ("wdr");//Watch Dog Timer Reset ??
 
     /* process received data */
     if(recFlag_Zigbee == 1) {
@@ -802,7 +822,7 @@ void ReadDataPackage(unsigned char ControlByte){
             ControlByte += 0x80;
             /* ?Ӳɼ?????ȡ??ǰ???? */
             if(identify[0] == 0x00) {
-                temp = getRightNowData(myaddr,0x01,NULL,NULL);
+                temp = getRightNowData(myaddr,0,0x01,NULL,NULL);
                 if(MYINT_MAX == temp) return;
                 CurrentDataBlock_1.thisCurrent = temp;
             } else {
@@ -1306,7 +1326,7 @@ void ReadDataPackage(unsigned char ControlByte){
             if(identify[1] == 0x01 || identify[1] == 0x02 || identify[1] == 0x03) {
                 ControlByte += 0x80;
                 /* ???ص?ѹֵ */
-                temp = getRightNowData(myaddr,0x02,NULL,NULL);
+                temp = getRightNowData(myaddr,0,0x02,NULL,NULL);
                 replyBuffer_485[0] = DEC2HEX((temp % 10 ) * 10);
                 replyBuffer_485[1] = DEC2HEX(temp / 10);
                 replySize = 2;
@@ -1314,7 +1334,7 @@ void ReadDataPackage(unsigned char ControlByte){
             } else if(identify[1] == 0xFF) {
                 ControlByte += 0x80;
                 /* ???ص?ѹֵ???ݿ? */
-                temp = getRightNowData(myaddr,0x02,NULL,NULL);
+                temp = getRightNowData(myaddr,0,0x02,NULL,NULL);
                 replyBuffer_485[0] = DEC2HEX((temp % 10 ) * 10);
                 replyBuffer_485[1] = DEC2HEX(temp / 10);
                 replyBuffer_485[2] = DEC2HEX((temp % 10 ) * 10);
@@ -1377,7 +1397,7 @@ void ReadDataPackage(unsigned char ControlByte){
 void WriteDataPackage(unsigned char ControlByte_485,unsigned char len) {
     volatile unsigned char identify[4] = {0};
     volatile unsigned char i = 0;
-    volatile unsigned int temp,t;
+    volatile unsigned int temp;//t;
     volatile unsigned char dataStartIndex = 0;
     /*
      * ?????ֽڼ?0x80??????(?????ظ?)
@@ -1618,10 +1638,10 @@ void ReceivedDataProcess_GPRS(unsigned char recNum){
     if(recNum == 1) {
         if(commandbyte == 0x30) {
             /* Query all Node */
-			for(i = 1;i <= MaxRouterNumber;i++) { //Start from 1
+			for(i = 1;i <= MaxRouterNumber;++i) { //Start from 1
 				/* if the data is cached */
 				if(cache_ttl[i] > 0) {
-					/* Transmit cached data to Bluetooth end */
+					//Transmit cached data to Bluetooth end
 					_delay_ms(400);
 					
 					#ifdef DEBUG
@@ -1634,25 +1654,20 @@ void ReceivedDataProcess_GPRS(unsigned char recNum){
 				}
                 
                 for(retryTime = 0;retryTime < QUERYRETRYTIME;++retryTime) {
-                    /* Send Query Command to Routers */				
-                    temp = getRightNowData(addressIdMapping[i].address,0,&Current,&Voltage);
+                    //Send Query Command to Routers
+                    temp = getRightNowData(addressIdMapping[i].address,i,0,&Current,&Voltage);
                     //_delay_ms(1000);//replace by for loop up there
                     if(MYINT_MAX != temp) {
-                            SendtoGPRS(i,Current,Voltage,REALTIME_DATA);
-                            _delay_ms(400);
-                            /* Break Retransmit For Loop */
-                            break;
+                        SendtoGPRS(i,Current,Voltage,REALTIME_DATA);
+                        _delay_ms(400);
+                        //Break Retransmit For Loop
+                        break;
                     }
-                    /* Send Default Value at the Last Query Retry */
+                    //Send Default Value at the Last Query Retry
                     else if(retryTime == QUERYRETRYTIME - 1) { //If no Ack are Received(retry just 1 time!)@version3
-                        /* Transmit Received data to Bluetooth end */
-                        
-                        #ifdef DEBUG
-                            if (ButtonStatus == 0x00) {
-                                USART0_Send_Byte(0x88);
-                            }
-                        #endif
+                        //Transmit Received data to Bluetooth end
                         SendtoGPRS(i,0,0,REALTIME_DATA);
+
                     }
                 }//end of retry for loop
 			}//end of for loop
@@ -1666,9 +1681,7 @@ void ReceivedDataProcess_GPRS(unsigned char recNum){
 		    if(cache_ttl[commandbyte - 0x30] > 0) {
                 /* Transmit cached data to Bluetooth end */
                 #ifdef DEBUG
-                    if (ButtonStatus == 0x00){
-                    USART0_Send_Byte(cache_ttl[i]);//_delay_ms(10);
-                    }
+                    USART0_Send_Byte(cache_ttl[commandbyte - 0x30]);//_delay_ms(10);
                 #endif
                 Current = cache_current[commandbyte - 0x30];
                 Voltage = cache_voltage[commandbyte - 0x30];
@@ -1676,7 +1689,7 @@ void ReceivedDataProcess_GPRS(unsigned char recNum){
 		    }
 		    else {
                 /* Query Certain Router */
-                temp =  getRightNowData(addressIdMapping[commandbyte - 0x30].address,0,&Current,&Voltage); 
+                temp = getRightNowData(addressIdMapping[commandbyte - 0x30].address,commandbyte - 0x30,0,&Current,&Voltage); 
                 /* Check Receive Buffer */
 			    if(MYINT_MAX != temp) {
 					/* Transmit Received data to Bluetooth end */
@@ -1707,14 +1720,15 @@ void ReceivedDataProcess_GPRS(unsigned char recNum){
 int main() {
 
     volatile unsigned char i = 0, j = 0;
-    volatile unsigned char r_staus;
+    volatile unsigned char hour;
+/*    volatile unsigned char r_staus;
     volatile unsigned char t;
+*/
 	volatile unsigned int temp;
     cli();
-
     /* Initialization */
     TWI_Init();
-    USART0_Init(2400);//Initialize USART0 with baud rate of 2400(485 Bus)
+    USART0_Init(38400);//Initialize USART0 with baud rate of 2400(485 Bus)
     USART1_Init(38400);//Initialize USART1 with baud rate of 38400(Zigbee)
     Timer0_Init();
     InitWatchDogTimer();
@@ -1772,17 +1786,14 @@ int main() {
                 /* Package Formate */
                 // Lenght + Address(6) + DeviceId + Current(2) + Voltage(2) + EventType
                 //
-                for(i = 0;i < sizeof(myaddr);++i) {
-                    ACK_Zigbee[i + 2] = myaddr[i];
+
+                for(i = 0;i < sizeof(myaddr);++i){
+                    myaddr[i] = recBuffer_Zigbee[i + 1];
                 }
-                ACK_Zigbee[sizeof(myaddr) + 2] = 0x04;
-                ACK_Zigbee[sizeof(myaddr) + 3] = recBuffer_Zigbee[sizeof(myaddr) + 2];//leak current high byte
-                ACK_Zigbee[sizeof(myaddr) + 4] = recBuffer_Zigbee[sizeof(myaddr) + 3];//leak current low byte
-                for(i = 0;i < Zigbee_AckLen;i++) {
-                    /* Send Acknowledgement Packet to Router */
-                    USART1_Send_Byte(ACK_Zigbee[i]);
-                }
-		    
+
+                temp = recBuffer_Zigbee[sizeof(myaddr) + 2] * 256 + recBuffer_Zigbee[sizeof(myaddr) + 3];
+                SendACKtoZigBee(myaddr,recBuffer_Zigbee[sizeof(myaddr) + 1],temp);
+
 				LEDON();
                 #ifdef TestUSART1
                     WRITE485;
@@ -1849,8 +1860,8 @@ int main() {
 		if(1 == oneMinuteFlag) {
 			oneMinuteFlag = 0;
 			/* ??ȡСʱ?? */
-			t = ReadDS1307(DS1307,HOUR);
-			if(t < ThisHour) {
+			hour = ReadDS1307(DS1307,HOUR);
+			if(hour < ThisHour) {
 				/* ?Ѿ??ǵڶ????? OR ϵͳ?ո????? */
 				/* ??CurrentDataBlock_1 ?еļ???λ?????? */
 				CurrentDataBlock_1.currentLeakTimes = 0;
@@ -1864,17 +1875,20 @@ int main() {
                 voltagePassRate[voltagePassRateIndex].minVoltage = 220;
                 //notify Routers
                 USART1_Send_Byte(StartByte_Zigbee);
-                USART1_Send_Byte(0x05);
+                USART1_Send_Byte(0x05);//length byte
                 for(i = 0;i < 4;++i) {
                     USART1_Send_Byte(0xFF);
                 }
                 USART1_Send_Byte(EndByte_Zigbee);
 			}
-            ThisHour = t;//???µ?ǰСʱ??
+            ThisHour = hour;//???µ?ǰСʱ??
 		}
 
+		/* feed dog every loop */
+        __asm__ __volatile__ ("wdr");//Watch Dog Timer Reset ??
+
+        /* Just for Debug */
 		//_delay_ms(1);//why delay?
     }
-
     return 0;
 }

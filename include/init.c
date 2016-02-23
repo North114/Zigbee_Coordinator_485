@@ -54,8 +54,8 @@ unsigned char CheckButtonStatus(unsigned char oldStatus) {
 
     if(temp & (1 << 5)) {
         /* Switch to GPRS*/
-        setBit(PORTD,5); 
-        clearBit(PORTD,4);
+        PORTD = setBit(PORTD,5); 
+        PORTD = clearBit(PORTD,4);
         result = 1;
         if(result != oldStatus) {
             /* reset baud rate and init USART0 */
@@ -63,8 +63,10 @@ unsigned char CheckButtonStatus(unsigned char oldStatus) {
         }
     } else {
         /* Switch to RS485 bus */
-        PORTD &= 0xDF; //clear bit PD5 or clearBit(PORTD,5)
-        PORTD |= 0x10; //set bit PD4 or setBit(PORTD,4)
+        PORTD = clearBit(PORTD,5);
+        PORTD = setBit(PORTD,4);
+        //PORTD &= 0xDF; //clear bit PD5 or clearBit(PORTD,5)
+        //PORTD |= 0x10; //set bit PD4 or setBit(PORTD,4)
         result = 0;
         if(result != oldStatus) {
             /* reset baud rate and init USART0 */
