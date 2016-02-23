@@ -168,7 +168,7 @@ volatile unsigned char RetransmitTimeRatio = 50;
 volatile unsigned int Timer2ExpireTime = Timer2ExpireNum + (DeviceID * 10) % Timer2ExpireNum;
 
 /* 485 Bus Related Variable */
-volatile unsigned char addr[] = {0x12,0x34,0x56,0x78,0x90,0x12};//Router Address
+//volatile unsigned char addr[] = {0x12,0x34,0x56,0x78,0x90,0x12};//Router Address
 volatile unsigned int TodayCurrentExceedTime = 0;
 volatile unsigned int TodayPowerDownTime = 0;
 volatile unsigned int TodayMaxCurrent = 0;
@@ -984,9 +984,9 @@ void ReceivedDataProcess() {
     #endif
     */
 
-    /* If we received acknowledgement data(ACK Data Length : 5) */
-    /* 0x0A addr(6 byte) Command_Type Current_MSB Current_LSB */
-    if (recNum == 10 && (isAddressMatch(recBuffer,1) == 0) && (recBuffer[sizeof(addr) + 1] == 0x04) && (recBuffer[sizeof(addr) + 2] == a[0]) && (recBuffer[sizeof(addr) + 3] == a[1])) {
+    /* If we received acknowledgement data(ACK Data Length : 11) */
+    /* 0x0B addr(6 byte) DeviceID Command_Type Current_MSB Current_LSB */
+    if (recNum == 11 && (isAddressMatch(recBuffer,1) == 0 || DeviceID == recBuffer[sizeof(addr) + 1]) && (recBuffer[sizeof(addr) + 2] == 0x04) && (recBuffer[sizeof(addr) + 3] == a[0]) && (recBuffer[sizeof(addr) + 4] == a[1])) {
         ackFlag = 0;// ackFlag
         #ifdef TestUSART
             TXREG = 0x55;
@@ -1004,9 +1004,10 @@ void ReceivedDataProcess() {
     }
 
     /* realtime data command*/
-    /* 0x09 address(6 byte) 0xCC 0x00 - (the command byte is 0xCC now) */
-    if ((recNum == 9) && (recBuffer[sizeof(addr) + 1] == 0xCC) ) {
-        if (isAddressMatch(recBuffer,1) == 0) {
+    /* 0x0A address(6 byte) DeviceID 0xCC 0x00 - (the command byte is 0xCC now) */
+    if ((recNum == 10) && (recBuffer[sizeof(addr) + 2] == 0xCC) ) {
+        /* Address match or id match */
+        if (isAddressMatch(recBuffer,1) == 0 || DeviceID == recBuffer[sizeof(addr) + 1]) {
             reTransmitTimes = 0; //clear re-transmit times when we need to transmit real-time data to Coordinator
             #ifdef DEBUG
                 TXREG = 0x39;
@@ -1054,77 +1055,77 @@ void ReceivedDataProcess() {
     }
 
     /* Parameter Setting Command */
-    /* 0x09 address(6 byte) command-byte command-param */
-    if((recNum == 9) && (isAddressMatch(recBuffer,1) == 0)) {
+    /* 10 address(6 byte) DeviceID command-byte command-param */
+    if((recNum == 10) && (isAddressMatch(recBuffer,1) == 0 || DeviceID == recBuffer[sizeof(addr) + 1])) {
         //Setting current threashold
-        if(recBuffer[sizeof(addr) + 1] == 0x01) {
+        if(recBuffer[sizeof(addr) + 2] == 0x01) {
             //read param command
-            if(recBuffer[sizeof(addr) + 2] == 0x00){
+            if(recBuffer[sizeof(addr) + 3] == 0x00){
                 TransmitParameterBuf[0] = CurrentThreshold / 100;
-                TransmitParameterData(recBuffer[sizeof(addr) + 1],TransmitParameterBuf,1);
+                TransmitParameterData(recBuffer[sizeof(addr) + 2],TransmitParameterBuf,1);
             }
             //modify param command
-            else CurrentThreshold = recBuffer[sizeof(addr) + 2] * 100;
+            else CurrentThreshold = recBuffer[sizeof(addr) + 3] * 100;
         //Setting voltage upper range
-        } else if(recBuffer[sizeof(addr) + 1] == 0x02) {
+        } else if(recBuffer[sizeof(addr) + 2] == 0x02) {
             //read param command
-            if(recBuffer[sizeof(addr) + 2] == 0x00) {
+            if(recBuffer[sizeof(addr) + 3] == 0x00) {
                 TransmitParameterBuf[0] = VoltageUpperRange/ 100;
-                TransmitParameterData(recBuffer[sizeof(addr) + 1],TransmitParameterBuf,1);
+                TransmitParameterData(recBuffer[sizeof(addr) + 2],TransmitParameterBuf,1);
             }
             //modify param command
             else {
-                VoltageUpperRange = recBuffer[sizeof(addr) + 2] * 100;
+                VoltageUpperRange = recBuffer[sizeof(addr) + 3] * 100;
             }
         //Setting voltage down range
-        } else if(recBuffer[sizeof(addr) + 1] == 0x03) {
+        } else if(recBuffer[sizeof(addr) + 2] == 0x03) {
             //read param command
-            if(recBuffer[sizeof(addr) + 2] == 0x00) {
+            if(recBuffer[sizeof(addr) + 3] == 0x00) {
                 TransmitParameterBuf[0] = VoltageDownRange / 100;
-                TransmitParameterData(recBuffer[sizeof(addr) + 1],TransmitParameterBuf,1);
+                TransmitParameterData(recBuffer[sizeof(addr) + 2],TransmitParameterBuf,1);
             }
             //modify param command
             else {
-                VoltageDownRange = recBuffer[sizeof(addr) + 2] * 100;
+                VoltageDownRange = recBuffer[sizeof(addr) + 3] * 100;
             }
         //Read Current Abnormal Time(Count) -- Read Only
-        } else if(recBuffer[sizeof(addr) + 1] == 0x05) {
+        } else if(recBuffer[sizeof(addr) + 2] == 0x05) {
             //read param command
-            if(recBuffer[sizeof(addr) + 2] == 0x00) {
+            if(recBuffer[sizeof(addr) + 3] == 0x00) {
                 TransmitParameterBuf[0] = TodayCurrentExceedTime / 256;
                 TransmitParameterBuf[1] = TodayCurrentExceedTime % 256;
-                TransmitParameterData(recBuffer[sizeof(addr) + 1],TransmitParameterBuf,2);
+                TransmitParameterData(recBuffer[sizeof(addr) + 2],TransmitParameterBuf,2);
             }
         //Read Mean Current Value -- Read Only
-        } else if(recBuffer[sizeof(addr) + 1] == 0x06) {
-            if(recBuffer[sizeof(addr) + 2] == 0x00) {
+        } else if(recBuffer[sizeof(addr) + 2] == 0x06) {
+            if(recBuffer[sizeof(addr) + 3] == 0x00) {
                 TransmitParameterBuf[0] = TodayMeanCurrent / 100;
-                TransmitParameterData(recBuffer[sizeof(addr) + 1],TransmitParameterBuf,1);
+                TransmitParameterData(recBuffer[sizeof(addr) + 2],TransmitParameterBuf,1);
             } 
         //Read Today Maximum Current Value
-        } else if(recBuffer[sizeof(addr) + 1] == 0x07){
-            if(recBuffer[sizeof(addr) + 2] == 0x00) {
+        } else if(recBuffer[sizeof(addr) + 2] == 0x07){
+            if(recBuffer[sizeof(addr) + 3] == 0x00) {
                 TransmitParameterBuf[0] = TodayMaxCurrent / 100;
-                TransmitParameterData(recBuffer[sizeof(addr) + 1],TransmitParameterBuf,1);
+                TransmitParameterData(recBuffer[sizeof(addr) + 2],TransmitParameterBuf,1);
             } 
-        }else if(recBuffer[sizeof(addr) + 1] == 0x08) {
+        }else if(recBuffer[sizeof(addr) + 2] == 0x08) {
             //read param command
-            if(recBuffer[sizeof(addr) + 2] == 0x00) {
+            if(recBuffer[sizeof(addr) + 3] == 0x00) {
                 TransmitParameterBuf[0] = TodayMinVoltage / 256;
                 TransmitParameterBuf[1] = TodayMinVoltage % 256;
-                TransmitParameterData(recBuffer[sizeof(addr) + 1],TransmitParameterBuf,2);
+                TransmitParameterData(recBuffer[sizeof(addr) + 2],TransmitParameterBuf,2);
             } 
-        } else if(recBuffer[sizeof(addr) + 1] == 0x09) {
-            if(recBuffer[sizeof(addr) + 2] == 0x00) {
+        } else if(recBuffer[sizeof(addr) + 2] == 0x09) {
+            if(recBuffer[sizeof(addr) + 3] == 0x00) {
                 TransmitParameterBuf[0] = TodayMaxVoltage / 256;
                 TransmitParameterBuf[1] = TodayMaxVoltage % 256;
-                TransmitParameterData(recBuffer[sizeof(addr) + 1],TransmitParameterBuf,2);
+                TransmitParameterData(recBuffer[sizeof(addr) + 2],TransmitParameterBuf,2);
             } 
-        } else if(recBuffer[sizeof(addr) + 1] == 10){
-            if(recBuffer[sizeof(addr) + 2] == 0x00) {
+        } else if(recBuffer[sizeof(addr) + 2] == 10){
+            if(recBuffer[sizeof(addr) + 3] == 0x00) {
                 TransmitParameterBuf[0] = TodayPowerDownTime / 256;
                 TransmitParameterBuf[1] = TodayPowerDownTime % 256;
-                TransmitParameterData(recBuffer[sizeof(addr) + 1],TransmitParameterBuf,2);
+                TransmitParameterData(recBuffer[sizeof(addr) + 2],TransmitParameterBuf,2);
             } 
         }
 
