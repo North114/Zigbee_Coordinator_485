@@ -21,6 +21,20 @@ void USART0_Init(unsigned int baud) {
 	DDRD |= 0x02;	           //ÅäÖÃTX0 pin(PD1) ÎªÊä³ö£¨ºÜÖØÒª£©
 }
 /*
+** Reset Baud Rate of USART0
+*/
+void USART0_Reset_BaudRate(unsigned int baud){
+	UCSR0B = (0 << TXEN0)|(0 << RXEN0)|(0 << RXCIE0); //½ÓÊÕ¡¢·¢ËÍÊ¹ÄÜ£¬½ÓÊÕÖÐ¶ÏÊ¹ÄÜ
+    _delay_ms(100);
+
+	baud = F_CPU/16/baud - 1	;   //²¨ÌØÂÊ×î´óÎª65K
+	UBRR0L = baud; 					     	  
+	UBRR0H = baud>>8; 		   //ÉèÖÃ²¨ÌØÂÊ
+   
+	UCSR0B = (1 << TXEN0)|(1 << RXEN0)|(1 << RXCIE0); //½ÓÊÕ¡¢·¢ËÍÊ¹ÄÜ£¬½ÓÊÕÖÐ¶ÏÊ¹ÄÜ
+    _delay_ms(100);
+}
+/*
 Initialize USART1
 */
 void USART1_Init(unsigned int baud)

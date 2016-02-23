@@ -45,7 +45,17 @@ date:03-17-2015
 #define StartByte_Zigbee 0xAA
 #define EndByte_Zigbee 0x75 //End byte should less than 128,since it's a character
 #define ZigbeeQueryByte 0xCC //query command byte
-//#define RouterNum 80       //Total device number in a PAN
+
+/* GPRS Related Macro */
+#define recBufferSize_GPRS 5// larger than PackLen
+#define StartByte_GPRS 0xBB
+#define EndByte_GPRS 0x70 //end byte should less than 128,since it's a character
+#define VOLTAGE_MONITOR 0xA0
+#define REALTIME_DATA 0x50
+#define HISTORY_DATA 0x01
+#define FINAL_PACKAGE 0x80
+#define COORDINATOR_ID 2
+#define QUERYRETRYTIME 3
 
 /* 485 Related Macro */
 #define recBufferSize_485 256// larger than PackLen
@@ -60,7 +70,7 @@ date:03-17-2015
 #define MONITOR_EEPROM_DOWN 100  //??ʼ??ַ
 #define MONITOR_EEPROM_SIZE (4*24*4*2) //?ֽ???
 #define ADDR_LENGTH 6 //router address length
-#define MaxRouterNumber 50 //as name
+#define MaxRouterNumber 20 //as name
 #define RouterDataUnitSize 200 //each router has 200 byte space
 #define EEPROM_OFFSET 100 //byte reserved
 #define RouterDataItemLength 10 //length of every item of router data
@@ -88,6 +98,12 @@ volatile unsigned char recBuffer_Zigbee[recBufferSize_Zigbee];
 
 volatile unsigned char ACK_Zigbee[Zigbee_AckLen] = {StartByte_Zigbee,0x0A,0,0,0,0,0,0,0x04,0,0,EndByte_Zigbee};
 
+/* GPRS Relatted Variable Defination */
+volatile unsigned char startFlag_GPRS = 0,recFlag_GPRS = 0;//add a 'volatile' is very impportant
+volatile unsigned char index_GPRS = 0,recNum_GPRS = 0;
+volatile unsigned char recBuffer_GPRS[recBufferSize_GPRS];
+volatile unsigned char recData_GPRS[recBufferSize_GPRS];
+volatile unsigned char BlockNum;
 
 /* 485 Relatted Variable Defination
    format : startByte + address + startByte + controlByte + lengthByte + DATA + checkSum + endByte
@@ -215,7 +231,7 @@ volatile struct {
 	1 GPRS
 	2 RS485
 */
-volatile unsigned char ButtonStatus = 1;//default for GPRS
+volatile unsigned char ButtonStatus = 255;//default for Nothing GPRS
 
 /* Configurable Parameters */
 /* Coordinator Parameters Default Value */
@@ -228,15 +244,7 @@ volatile unsigned int VoltageDownRange = 40;//(200V)down voltage range(-10%)
 volatile unsigned char MonitorVoltageID = 1;//Router that sending Voltage Monitor Data
 volatile unsigned char RetransmitTimeRatio = 50;//Retransmit period Ratindex_Bluetooth++o
 
-/* Clear Bit(Set bit to 0) */
-inline unsigned char setBit(unsigned char d,unsigned char n) {
-	return (d | (1<<n));
-}
-/* Set Bit(set bit to 1) */
-/* Example : data = clearBit(data,1),means clear 1st bit of data(note data holds 1 byte) */
-inline unsigned char clearBit(unsigned char d,unsigned char n) {
-	return (d & (~(1<<n)));
-}
+
 
 /* ??ʮ??????ת????ʮ????????(12 -> 0x12 = 18) */
 inline unsigned char DEC2HEX(unsigned int d) {
@@ -252,7 +260,7 @@ inline unsigned char HEX2DEC(unsigned char d) {
 /*
 ** Initialize Button and Led Pins
 */
-void initIOfor485Bus() {
+void initIO() {
 	DDRC |= 0x80;//LED pin - output
 	DDRC &= ~(0x30);//2 Button pin - input
 
@@ -261,63 +269,8 @@ void initIOfor485Bus() {
 	/* 1101 1111 
 	   we need to set and clear bit one ny one !!!!!!!
 	*/
-    PORTD &= 0xDF; //clear bit PD5
-    PORTD |= 0x10; //set bit PD4
-
 	/* make 485 enable pin Output pin */
 	DDRB |= 0x10;//485 enable pin
-}
-/*
-** Turn On LED
-*/
-void LEDON() {
-    PORTC |= 0x80; //Turns ON LEDs
-}
-/*
-** Turn Off LED
-*/
-void LEDOFF() {
-    PORTC &= ~(0x80); //Turns OFF LEDs
-}
-/* 
-** Read Switch Status
-*/
-void readButtonSatus() {
-	volatile unsigned char temp;
-	temp = PINC & 0x30;//button status
-
-	ButtonStatus = ((temp & 0x10) << 1) + ((temp & 0x20) >> 1);
-	ButtonStatus = ButtonStatus >> 4;
-
-	bitVar.bit4 = temp >> 4;
-	bitVar.bit5 = temp >> 5;
-}
-/* 
-** Check Switch Status
-*/
-int checkStatus() {
-	//if bit changed , then change the pin accordingly
-	if(bitVar.bit5 ^ (PORTD & (1 << 5))) {
-		if(bitVar.bit5) {
-			PORTD = setBit(PORTD,5); //make output 10(connect to GPRS);
-		}
-	   	else {
-	   		PORTD = clearBit(PORTD,5);
-	   	}
-	}
-
-	//if bit changed , then change the pin accordingly
-   	if(bitVar.bit4 ^ (PORTD & (1 << 4))) {
-    	if(bitVar.bit4) {
-    		PORTD = setBit(PORTD,4); //make output 10(connect to GPRS);
-    	}
-    	else {
-    		PORTD = clearBit(PORTD,4);
-    	}
-    }
-
-    if((~bitVar.bit4) && bitVar.bit5)return 1;
-    else return 0;
 }
 /*
 ** USART0 Receive Interrupt Service Routing(485)
@@ -330,52 +283,75 @@ ISR(USART0_RX_vect)//USART Receive Complete Vector
 
 	UCSR0B &= (~(1 << RXCIE0));//disable receiver interrupt(reset bit)
 	temp = UDR0;//read data
-    
-	if(temp == StartByte_485){
-		if(startFlag_485 == 0) {
-			startFlag_485 = 1;
-			index_485 = 0;
-		} else if(index_485 < recBufferSize_485) {
-			recBuffer_485[index_485] = temp;	
-			++index_485;
-		}
-	} else if(startFlag_485 == 1){
-		if(index_485 >= recBufferSize_485 - 1) {
-			startFlag_485 = 0;//bad package
-			index_485 = 0;
-		} else if(index_485 > 8) {//8 is the length byte index
-			if(index_485 < 10 + recBuffer_485[8]) {
-				recBuffer_485[index_485] = temp;
-				++index_485;
-			} else if (index_485 == 10 + recBuffer_485[8] && temp == EndByte_485){
-				/* a valid package received */
-				#ifdef DEBUG
-					//WRITE485;
-					//USART0_Send_Byte(0x55);
-					//READ485;
-				#endif
-				recFlag_485 = 1;
-				recNum_485 = index_485;
-				startFlag_485 = 0;
-				index_485 = 0;
-				WRITE485;
-			} else {
-				#ifdef DEBUG
-					WRITE485;
-					USART0_Send_Byte(0x33);
-					//USART0_Send_Byte(index_485);
-					//USART0_Send_Byte(recBuffer_485[8]);
-					//USART0_Send_Byte(recBuffer_485[index_485]);
-					READ485;
-				#endif
-				startFlag_485 = 0;//bad package
-				index_485 = 0;
-			}
-		} else {
-			recBuffer_485[index_485] = temp;
-			++index_485;
-		}
-	}
+
+    if(0 == ButtonStatus) {
+        /* RS485 Bus Mode */
+        if(temp == StartByte_485){
+            if(startFlag_485 == 0) {
+                startFlag_485 = 1;
+                index_485 = 0;
+            } else if(index_485 < recBufferSize_485) {
+                recBuffer_485[index_485] = temp;	
+                ++index_485;
+            }
+        } else if(startFlag_485 == 1){
+            if(index_485 >= recBufferSize_485 - 1) {
+                startFlag_485 = 0;//bad package
+                index_485 = 0;
+            } else if(index_485 > 8) {//8 is the length byte index
+                if(index_485 < 10 + recBuffer_485[8]) {
+                    recBuffer_485[index_485] = temp;
+                    ++index_485;
+                } else if (index_485 == 10 + recBuffer_485[8] && temp == EndByte_485){
+                    /* a valid package received */
+                    #ifdef DEBUG
+                        //WRITE485;
+                        //USART0_Send_Byte(0x55);
+                        //READ485;
+                    #endif
+                    recFlag_485 = 1;
+                    recNum_485 = index_485;
+                    startFlag_485 = 0;
+                    index_485 = 0;
+                    WRITE485;
+                } else {
+                    #ifdef DEBUG
+                        WRITE485;
+                        USART0_Send_Byte(0x33);
+                        //USART0_Send_Byte(index_485);
+                        //USART0_Send_Byte(recBuffer_485[8]);
+                        //USART0_Send_Byte(recBuffer_485[index_485]);
+                        READ485;
+                    #endif
+                    startFlag_485 = 0;//bad package
+                    index_485 = 0;
+                }
+            } else {
+                recBuffer_485[index_485] = temp;
+                ++index_485;
+            }
+        }
+    } else if(1 == ButtonStatus) {
+        /* GPRS Mode*/
+        if((startFlag_GPRS == 1)&&(index_GPRS < recBufferSize_GPRS - 1)){
+            recBuffer_GPRS[index_GPRS] = temp;
+            index_GPRS++;
+        }
+        /* here we decide weather received data are valid */
+        if(temp == StartByte_GPRS){
+            startFlag_GPRS = 1;//when we received a start byte,set startFlag
+
+            index_GPRS = 0;//initialize index_Zigbee,very important
+        }
+        else if((startFlag_GPRS == 1)&&(temp == EndByte_GPRS)){//endByte only make sense when startByte appeare
+            startFlag_GPRS = 0;//when we received a end byte,reset startFlag
+            recNum_GPRS = index_GPRS - 1;
+            index_GPRS = 0;
+            recFlag_GPRS = 1;
+        }
+        else{}
+
+    }
 
 	UCSR0B |= (1 << RXCIE0);//re-enable receiver interrupt(set bit)
 	sei();
@@ -432,7 +408,8 @@ ISR(TIMER0_OVF_vect)//Timer0 Overflow Interrupt Vector
 		T0_Count = 0;
 
 		/* feed dog every 2 second */
-		__asm__ __volatile__ ("wdr");//Watch Dog Timer Reset ??
+		
+        __asm__ __volatile__ ("wdr");//Watch Dog Timer Reset ??
 
 		//process down operation per 2 seconds,so we can finish all down operation in 10 seconds
 		modTemp = bisecondCount % CACHE_SPACE;//Router Number
@@ -451,9 +428,28 @@ ISR(TIMER0_OVF_vect)//Timer0 Overflow Interrupt Vector
 			oneMinuteFlag = 1;
 		}
 
+
+
+
+
 		//TIMSK0 = (0<<TOIE0);//DISABLE TIMER 0 OVERFLOW INTERRUPT(@page 111)
 	}
 	TCNT0 = T0IniVal;//Timing/Counter Register
+}
+/*
+** Send Packet to GPRS
+*/
+void SendtoGPRS(unsigned int id,unsigned int current,unsigned int voltage,unsigned char type){
+    /* Totaly 9 Byte */
+    USART0_Send_Byte(StartByte_Zigbee);
+    USART0_Send_Byte(id % 256);
+    USART0_Send_Byte(current / 256);
+    USART0_Send_Byte(current % 256);
+    USART0_Send_Byte(voltage / 256);
+    USART0_Send_Byte(voltage % 256);
+    USART0_Send_Byte(type);
+    USART0_Send_Byte(COORDINATOR_ID);
+    USART0_Send_Byte(EndByte_Zigbee);
 }
 /*
 ** Get Router Id by Address
@@ -595,9 +591,17 @@ void StoreZigbeeReceivedData() {
             USART0_Send_Byte(0x02);
         #endif
     }
+    /* In GPRS Mode , we just transmit data to GPRS end */
+    if(1 == ButtonStatus) {
+        /* Convert Date Type */
+        if(DataType == 0x03) DataType = VOLTAGE_MONITOR;//Voltage Monitor Data Type
+        else DataType = HISTORY_DATA;
+        /* Transmit Data to GPRS Server Side */
+        SendtoGPRS(id,Current,Voltage,DataType);
+    }
 }
 /* ??ȡʵʱ??ѹ?????????? */
-unsigned int getRightNowData(volatile unsigned char *addr,unsigned char type){
+unsigned int getRightNowData(volatile unsigned char *addr,unsigned char type,unsigned int *c,unsigned int *v){
     unsigned int Current = 0,Voltage = 0;
     unsigned char i;
 
@@ -643,19 +647,24 @@ unsigned int getRightNowData(volatile unsigned char *addr,unsigned char type){
         }
 
         Current = recBuffer_Zigbee[sizeof(myaddr) + 2] * 256 + recBuffer_Zigbee[sizeof(myaddr) + 3];
+        if(c != NULL) *(c) = Current;
         if(Current < 25500) {
             Current = Current / 100;
         } else {
             Current = 255;
         }
         Voltage = recBuffer_Zigbee[sizeof(myaddr) + 4] * 256 + recBuffer_Zigbee[sizeof(myaddr) + 5];
+        if(v != NULL) *(v) = Voltage;
         if(Voltage < 25500){
             Voltage = Voltage / 100;
         } else {
             Voltage = 255;
         }
-    } else return MYINT_MAX;//Error Code
-
+    } else {
+        RealTimeQuery = 0;
+        return MYINT_MAX;//Error Code
+    }
+    
     RealTimeQuery = 0;
 
     if(type == 1) {
@@ -793,7 +802,7 @@ void ReadDataPackage(unsigned char ControlByte){
             ControlByte += 0x80;
             /* ?Ӳɼ?????ȡ??ǰ???? */
             if(identify[0] == 0x00) {
-                temp = getRightNowData(myaddr,0x01);
+                temp = getRightNowData(myaddr,0x01,NULL,NULL);
                 if(MYINT_MAX == temp) return;
                 CurrentDataBlock_1.thisCurrent = temp;
             } else {
@@ -1297,7 +1306,7 @@ void ReadDataPackage(unsigned char ControlByte){
             if(identify[1] == 0x01 || identify[1] == 0x02 || identify[1] == 0x03) {
                 ControlByte += 0x80;
                 /* ???ص?ѹֵ */
-                temp = getRightNowData(myaddr,0x02);
+                temp = getRightNowData(myaddr,0x02,NULL,NULL);
                 replyBuffer_485[0] = DEC2HEX((temp % 10 ) * 10);
                 replyBuffer_485[1] = DEC2HEX(temp / 10);
                 replySize = 2;
@@ -1305,7 +1314,7 @@ void ReadDataPackage(unsigned char ControlByte){
             } else if(identify[1] == 0xFF) {
                 ControlByte += 0x80;
                 /* ???ص?ѹֵ???ݿ? */
-                temp = getRightNowData(myaddr,0x02);
+                temp = getRightNowData(myaddr,0x02,NULL,NULL);
                 replyBuffer_485[0] = DEC2HEX((temp % 10 ) * 10);
                 replyBuffer_485[1] = DEC2HEX(temp / 10);
                 replyBuffer_485[2] = DEC2HEX((temp % 10 ) * 10);
@@ -1594,6 +1603,106 @@ void ReceivedDataProcess_485(int num) {
 		USART0_Send_Byte(0x00);
 	#endif
 }
+/*
+** Process Received data from GPRS side
+*/
+void ReceivedDataProcess_GPRS(unsigned char recNum){
+    unsigned char commandbyte = recBuffer_GPRS[0];
+    unsigned int Current,Voltage;
+    unsigned char retryTime,i;
+    unsigned int temp;
+    
+    recBuffer_GPRS[0] = 0;
+    RealTimeQuery = 1;
+    /* Here we only process Real time Query of Single Node or AllNode*/
+    if(recNum == 1) {
+        if(commandbyte == 0x30) {
+            /* Query all Node */
+			for(i = 1;i <= MaxRouterNumber;i++) { //Start from 1
+				/* if the data is cached */
+				if(cache_ttl[i] > 0) {
+					/* Transmit cached data to Bluetooth end */
+					_delay_ms(400);
+					
+					#ifdef DEBUG
+					    USART0_Send_Byte(cache_ttl[i]);//_delay_ms(10);
+					#endif
+                    Current = cache_current[i] * 100;
+                    Voltage = cache_voltage[i] * 100;
+	                SendtoGPRS(i,Current,Voltage,REALTIME_DATA);
+					continue;//skip following code
+				}
+                
+                for(retryTime = 0;retryTime < QUERYRETRYTIME;++retryTime) {
+                    /* Send Query Command to Routers */				
+                    temp = getRightNowData(addressIdMapping[i].address,0,&Current,&Voltage);
+                    //_delay_ms(1000);//replace by for loop up there
+                    if(MYINT_MAX != temp) {
+                            SendtoGPRS(i,Current,Voltage,REALTIME_DATA);
+                            _delay_ms(400);
+                            /* Break Retransmit For Loop */
+                            break;
+                    }
+                    /* Send Default Value at the Last Query Retry */
+                    else if(retryTime == QUERYRETRYTIME - 1) { //If no Ack are Received(retry just 1 time!)@version3
+                        /* Transmit Received data to Bluetooth end */
+                        
+                        #ifdef DEBUG
+                            if (ButtonStatus == 0x00) {
+                                USART0_Send_Byte(0x88);
+                            }
+                        #endif
+                        SendtoGPRS(i,0,0,REALTIME_DATA);
+                    }
+                }//end of retry for loop
+			}//end of for loop
+			_delay_ms(500);
+			/* The Last Packet */
+            SendtoGPRS(0,0,0,FINAL_PACKAGE);
+
+        } else if(commandbyte > 0x30 && (commandbyte - 0x30) <= MaxRouterNumber){
+            /* Single Node */
+            /* if the data is cached */
+		    if(cache_ttl[commandbyte - 0x30] > 0) {
+                /* Transmit cached data to Bluetooth end */
+                #ifdef DEBUG
+                    if (ButtonStatus == 0x00){
+                    USART0_Send_Byte(cache_ttl[i]);//_delay_ms(10);
+                    }
+                #endif
+                Current = cache_current[commandbyte - 0x30];
+                Voltage = cache_voltage[commandbyte - 0x30];
+                SendtoGPRS(commandbyte - 0x30,Current,Voltage,REALTIME_DATA);
+		    }
+		    else {
+                /* Query Certain Router */
+                temp =  getRightNowData(addressIdMapping[commandbyte - 0x30].address,0,&Current,&Voltage); 
+                /* Check Receive Buffer */
+			    if(MYINT_MAX != temp) {
+					/* Transmit Received data to Bluetooth end */
+                    SendtoGPRS(commandbyte - 0x30,Current,Voltage,REALTIME_DATA);
+				}
+			    else { //If no Ack are Received
+                    /* Transmit Received data to Bluetooth end */
+                    #ifdef DEBUG
+                        if (ButtonStatus == 0x00){
+                        USART0_Send_Byte(0x88);//_delay_ms(10);
+                        }
+                    #endif
+                    SendtoGPRS(commandbyte - 0x30,0,0,REALTIME_DATA);
+				}
+		    }
+		    _delay_ms(500);
+		    /* The Last Packet */
+	        SendtoGPRS(0,0,0,FINAL_PACKAGE);	
+        }
+    } else {
+        #ifdef DEBUG
+            USART0_Send_Byte(0x22);
+        #endif
+    }
+    RealTimeQuery = 0;
+}
 
 int main() {
 
@@ -1609,7 +1718,7 @@ int main() {
     USART1_Init(38400);//Initialize USART1 with baud rate of 38400(Zigbee)
     Timer0_Init();
     InitWatchDogTimer();
-    initIOfor485Bus();
+    initIO();
     //CheckParameter();
 	
     sei();            //Enable Gloabal Interrupt
@@ -1639,10 +1748,11 @@ int main() {
     voltagePassRate[voltagePassRateIndex].minVoltage = 220;
     
     while(1) {
-		/* read switch button status */
-		//readButtonSatus();
-		//t = checkStatus();
-		
+		/* check switch button status 
+            0 : RS485 BUS
+            1 : GPRS
+        */
+	    ButtonStatus = CheckButtonStatus(ButtonStatus);
 		/* If Valid Data have been Received From Zigbee */
 		if(1 == recFlag_Zigbee) {
             #ifdef TestUSART1
@@ -1695,7 +1805,7 @@ int main() {
 		}
 
 		/* If Valid Data have been Received From Bluetooth */
-		if(1 == recFlag_485) {
+		if(1 == recFlag_485 && 0 == ButtonStatus) {
 		    recFlag_485 = 0;
 
             WRITE485;
@@ -1713,18 +1823,28 @@ int main() {
 			//WRITE485;
 			#ifdef DEBUG
 			for(j = 0;j < recNum_485;++j){
-	//			USART0_Send_Byte(recData_485[j]);
+	            //USART0_Send_Byte(recData_485[j]);
 			}
 			#endif
 
-			ReceivedDataProcess_485(recNum_485);
-
-			recNum_485 = 0;
+            ReceivedDataProcess_485(recNum_485);
+            
+            recNum_485 = 0;
 			LEDOFF();
-
 			READ485;
 		}
-		
+	    
+        /* If there are data received from GPRS end */
+        if(1 == recFlag_GPRS && 1 == ButtonStatus) {
+            recFlag_GPRS = 0;
+            LEDON();
+
+            ReceivedDataProcess_GPRS(recNum_GPRS);
+
+            recNum_GPRS = 0;
+            LEDOFF();
+        }
+
 		/* ÿ??1???Ӹ??µ?ǰСʱ?????ж??Ƿ????˵ڶ??? */
 		if(1 == oneMinuteFlag) {
 			oneMinuteFlag = 0;

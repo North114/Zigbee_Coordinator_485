@@ -5,7 +5,10 @@
         #define F_CPU 16000000UL
     #endif
     #include <avr/io.h>
+    #include <util/delay.h>
+
 	void USART0_Init(unsigned int baud);
+    void USART0_Reset_BaudRate(unsigned int baud);
 	void USART1_Init(unsigned int baud);
 
 	inline void USART0_Send_Byte(unsigned char data);
