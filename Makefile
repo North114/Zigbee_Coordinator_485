@@ -4,7 +4,7 @@ CFLAGS=-Wall -Os
 TFLAGS=-j .text -j .data -O ihex
 DFLAG=-p m644p -c usbasp -e -U 
 HEADERS=include/ds1307.c include/usart.c include/at24c128.c include/init.c
-MACROS=-DDEBUG
+MACROS=#-DDEBUG
 ## file name lists
 ## GPRS_Config_NakedSend.c
 ## Zigbee_Coordinator_July_24.c
