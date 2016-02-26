@@ -70,11 +70,14 @@ date:03-17-2015
 #define MONITOR_EEPROM_DOWN 100  //??ʼ??ַ
 #define MONITOR_EEPROM_SIZE (4*24*4*2) //?ֽ???
 #define ADDR_LENGTH 6 //router address length
-#define MaxRouterNumber 20 //as name
+#define MaxRouterNumber 21 //as name
 #define RouterDataUnitSize 200 //each router has 200 byte space
 #define EEPROM_OFFSET 100 //byte reserved
 #define RouterDataItemLength 10 //length of every item of router data
 #define MYINT_MAX 65535
+#define MAXVOLTAGERANGE 40
+#define ERROR_INVALID 1
+#define ERROR_NOTEXIST 2
 
 #define CACHE_TIME 250
 #define CACHE_SPACE 200
@@ -115,7 +118,7 @@ volatile unsigned char myaddr[] = {0x12,0x34,0x56,0x78,0x90,0x12};//LSB -- MSB
 volatile unsigned char password[] = {0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00};
 volatile unsigned char recBuffer_485[recBufferSize_485];
 volatile unsigned char recData_485[recBufferSize_485];
-volatile unsigned char replyBuffer_485[replyBufferSize_485];
+unsigned char replyBuffer_485[replyBufferSize_485];
 volatile unsigned char ZigbeeTransmitBuf[10];
 
 /* ֡?ֽ? */
@@ -786,8 +789,8 @@ void ReplySettingParamOkPackge(unsigned char ControlByte,unsigned char *buf,unsi
         sum += len;
         USART0_Send_Byte(len);
         for(i = 0;i < len;++i) {
-            sum += DecodeByte + *(buf + i);
-            USART0_Send_Byte(DecodeByte + *(buf + i));
+            sum += *(buf + i) + DecodeByte;
+            USART0_Send_Byte(*(buf + i) + DecodeByte);
         }
     }
     USART0_Send_Byte(sum);
@@ -842,7 +845,9 @@ void ReadDataPackage(unsigned char ControlByte){
             /* Query Router for Results */
             ZigbeeTransmitBuf[0] = 0x00;
             temp = generalQueryData(0x05,ZigbeeTransmitBuf,0x01);
-            if(MYINT_MAX == temp) return;//no router with specific address found
+            if(MYINT_MAX == temp) {
+                return;//no router with specific address found
+            }
             CurrentDataBlock_1.currentLeakTimes = temp;
             /* Load Data to Transmit Buffer */
             replyBuffer_485[0] = 0x00;//LSBС??????Ĭ??Ϊ0
@@ -937,13 +942,20 @@ void ReadDataPackage(unsigned char ControlByte){
                         USART0_Send_Byte(0x53);
                         USART0_Send_Byte(0x05);
                     #endif
+                    replyBuffer_485[0] = ERROR_NOTEXIST;
+                    ReplySettingParamOkPackge(ControlByte,replyBuffer_485,1);
                     return;
                 }
+
                 /* Obtain currentIndex */
                 if(identify[0] > addressIdMapping[tempID - 1].currentIndex){
                     if(addressIdMapping[tempID - 1].isCurrentFull == 1) {
                         temp = HISTORY_CACHE_SIZE - (identify[0] - addressIdMapping[tempID - 1].currentIndex);
-                    } else return;
+                    } else {
+                        replyBuffer_485[0] = ERROR_NOTEXIST;
+                        ReplySettingParamOkPackge(ControlByte,replyBuffer_485,1);
+                        return;    
+                    }
                 } else {
                     temp = addressIdMapping[tempID - 1].currentIndex - identify[0];
                 }
@@ -978,6 +990,8 @@ void ReadDataPackage(unsigned char ControlByte){
                 replySize = 15;
             } else {
                 ControlByte += 0xC0;
+                replyBuffer_485[0] = ERROR_NOTEXIST;
+                ReplySettingParamOkPackge(ControlByte,replyBuffer_485,1);
                 return;
             }
         }
@@ -1049,6 +1063,8 @@ void ReadDataPackage(unsigned char ControlByte){
                     #ifdef TestUSART1
                         USART0_Send_Byte(0x04);
                     #endif
+                    replyBuffer_485[0] = ERROR_NOTEXIST;
+                    ReplySettingParamOkPackge(ControlByte,replyBuffer_485,1);
                     return;
                 }
                 /* Obtain voltageIndex */
@@ -1060,6 +1076,8 @@ void ReadDataPackage(unsigned char ControlByte){
                             USART0_Send_Byte(addressIdMapping[tempID - 1].voltageIndex);
                             USART0_Send_Byte(0x06);
                         #endif
+                        replyBuffer_485[0] = ERROR_NOTEXIST;
+                        ReplySettingParamOkPackge(ControlByte,replyBuffer_485,1);
                         return;
                     }
                 } else {
@@ -1216,6 +1234,11 @@ void ReadDataPackage(unsigned char ControlByte){
             
             temp = generalQueryData(0x03,ZigbeeTransmitBuf,1);
             if(MYINT_MAX == temp) return;
+            #ifdef DEBUG
+                USART0_Send_Byte(temp / 256);
+                USART0_Send_Byte(temp % 256);
+                USART0_Send_Byte(0x53);
+            #endif
             ParameterIdentifier.VoltageDownRange = 220 - temp;
             temp = ParameterIdentifier.VoltageDownRange;
             replyBuffer_485[0] = DEC2HEX((temp % 10) * 10);
@@ -1247,7 +1270,14 @@ void ReadDataPackage(unsigned char ControlByte){
             ControlByte += 0x80;
             ZigbeeTransmitBuf[0] = 0x00;
             temp = generalQueryData(0x03,ZigbeeTransmitBuf,1);
-            if(MYINT_MAX == temp) return;
+            if(MYINT_MAX == temp) {
+                return;
+            }
+            #ifdef DEBUG
+                USART0_Send_Byte(temp / 256);
+                USART0_Send_Byte(temp % 256);
+                USART0_Send_Byte(0x53);
+            #endif
             ParameterIdentifier.VoltageDownRange = 220 - temp;
             temp = ParameterIdentifier.VoltageDownRange;
             replyBuffer_485[0] = DEC2HEX((temp % 10) * 10);
@@ -1458,8 +1488,15 @@ void WriteDataPackage(unsigned char ControlByte_485,unsigned char len) {
             temp += HEX2DEC(recData_485[dataStartIndex]) * 10;
             ParameterIdentifier.VoltageUpperRange = temp;
             /* Load Data */
-            if((temp & 0xFF) > 220)ZigbeeTransmitBuf[0] = (temp & 0xFF) - 220;
+            if(((temp & 0xFF) - 220) >= 0 && ((temp & 0xFF) - 220) <= MAXVOLTAGERANGE)ZigbeeTransmitBuf[0] = (temp & 0xFF) - 220;
             else {
+                replyBuffer_485[0] = ERROR_INVALID;
+                #ifdef DENUG
+                    USART0_Send_Byte(temp / 256);
+                    USART0_Send_Byte(temp % 256);
+                    USART0_Send_Byte(53);
+                #endif
+                ReplySettingParamOkPackge(ControlByte_485,replyBuffer_485,1);
                 return;
             }
             //USART0_Send_Byte(ZigbeeTransmitBuf[0]);
@@ -1476,8 +1513,12 @@ void WriteDataPackage(unsigned char ControlByte_485,unsigned char len) {
                 USART0_Send_Byte(0x53);
                 USART0_Send_Byte(temp);
             #endif
-            if((temp & 0xFF) < 220)ZigbeeTransmitBuf[0] = 220 - (temp & 0xFF);
-            else return;
+            if((220 - (temp & 0xFF)) >= 0 && (220 - (temp & 0xFF) <= MAXVOLTAGERANGE))ZigbeeTransmitBuf[0] = 220 - (temp & 0xFF);
+            else {
+                replyBuffer_485[0] = ERROR_INVALID;
+                ReplySettingParamOkPackge(ControlByte_485,replyBuffer_485,1);
+                return;
+            }
             generalQueryData(3,ZigbeeTransmitBuf,1);
             ReplySettingParamOkPackge(ControlByte_485,NULL,0);
         } else if(identify[1] == 0x0C && identify[0] == 0x01){
@@ -1487,8 +1528,12 @@ void WriteDataPackage(unsigned char ControlByte_485,unsigned char len) {
             temp += HEX2DEC(recData_485[dataStartIndex]) * 10;
             ParameterIdentifier.VoltageUpperRange = temp;
             /* Load Data */
-            if((temp & 0xFF) > 220)ZigbeeTransmitBuf[0] = (temp & 0xFF) - 220;
-            else return;
+            if(((temp & 0xFF) - 220) >= 0 && ((temp & 0xFF) - 220) <= MAXVOLTAGERANGE)ZigbeeTransmitBuf[0] = (temp & 0xFF) - 220;
+            else {
+                replyBuffer_485[0] = ERROR_INVALID;
+                ReplySettingParamOkPackge(ControlByte_485,replyBuffer_485,1);
+                return;
+            }
             //USART0_Send_Byte(ZigbeeTransmitBuf[0]);
             generalQueryData(2,ZigbeeTransmitBuf,1);
             ReplySettingParamOkPackge(ControlByte_485,NULL,0);
@@ -1499,8 +1544,12 @@ void WriteDataPackage(unsigned char ControlByte_485,unsigned char len) {
             temp += HEX2DEC(recData_485[dataStartIndex]) * 10;
             ParameterIdentifier.VoltageDownRange = temp;
             /* Load Data */
-            if((temp & 0xFF) < 220)ZigbeeTransmitBuf[0] = 220 - (temp & 0xFF);
-            else return;
+            if((220 - (temp & 0xFF)) >= 0 && (220 - (temp & 0xFF) <= MAXVOLTAGERANGE))ZigbeeTransmitBuf[0] = 220 - (temp & 0xFF);
+            else {
+                replyBuffer_485[0] = ERROR_INVALID;
+                ReplySettingParamOkPackge(ControlByte_485,replyBuffer_485,1);
+                return;
+            }
             generalQueryData(3,ZigbeeTransmitBuf,1);
             ReplySettingParamOkPackge(ControlByte_485,NULL,0);
         } else {
