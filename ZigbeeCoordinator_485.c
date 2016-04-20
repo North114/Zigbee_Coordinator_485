@@ -638,7 +638,8 @@ unsigned int getRightNowData(volatile unsigned char *addr,unsigned char id,unsig
     USART1_Send_Byte(StartByte_Zigbee);
     USART1_Send_Byte(0x0A);//package length
     for(i = 0;i < sizeof(myaddr);++i){
-        USART1_Send_Byte(*(addr + i));
+        //USART1_Send_Byte(*(addr + i));
+        USART1_Send_Byte(0x00);// Here , We just use id as identifier , the address is all 0x00
     }
     USART1_Send_Byte(id);
     USART1_Send_Byte(ZigbeeQueryByte);//Command Byte
