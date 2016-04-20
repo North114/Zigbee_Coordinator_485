@@ -1753,22 +1753,24 @@ void ReceivedDataProcess_GPRS(unsigned char recNum){
                 SendtoGPRS(commandbyte - 0x30,Current,Voltage,REALTIME_DATA);
 		    }
 		    else {
-                /* Query Certain Router */
-                temp = getRightNowData(addressIdMapping[commandbyte - 0x30].address,commandbyte - 0x30,0,&Current,&Voltage); 
-                /* Check Receive Buffer */
-			    if(MYINT_MAX != temp) {
-					/* Transmit Received data to Bluetooth end */
-                    SendtoGPRS(commandbyte - 0x30,Current,Voltage,REALTIME_DATA);
-				}
-			    else { //If no Ack are Received
-                    /* Transmit Received data to Bluetooth end */
-                    #ifdef DEBUG
-                        if (ButtonStatus == 0x00){
-                        USART0_Send_Byte(0x88);//_delay_ms(10);
-                        }
-                    #endif
-                    SendtoGPRS(commandbyte - 0x30,0,0,REALTIME_DATA);
-				}
+                for(retryTime = 0;retryTime < QUERYRETRYTIME;++retryTime) {
+                    /* Query Certain Router */
+                    temp = getRightNowData(addressIdMapping[commandbyte - 0x30].address,commandbyte - 0x30,0,&Current,&Voltage); 
+                    /* Check Receive Buffer */
+                    if(MYINT_MAX != temp) {
+                        /* Transmit Received data to Bluetooth end */
+                        SendtoGPRS(commandbyte - 0x30,Current,Voltage,REALTIME_DATA);
+                        break;
+                    } else if(QUERYRETRYTIME - 1 == retryTime) { //If no Ack are Received
+                        /* Transmit Received data to Bluetooth end */
+                        #ifdef DEBUG
+                            if (ButtonStatus == 0x00){
+                                USART0_Send_Byte(0x88);//_delay_ms(10);
+                            }
+                        #endif
+                        SendtoGPRS(commandbyte - 0x30,0,0,REALTIME_DATA);
+                    }
+                }//end of retry loop
 		    }
 		    _delay_ms(500);
 		    /* The Last Packet */
