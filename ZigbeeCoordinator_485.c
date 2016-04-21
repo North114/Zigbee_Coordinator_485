@@ -1711,7 +1711,7 @@ void ReceivedDataProcess_GPRS(unsigned char recNum){
     if(recNum == 1) {
         if(commandbyte == 0x30) {
             /* Query all Node */
-			for(i = 12;i <= MaxRouterNumber;++i) { //Start from 1
+			for(i = 12;i <= MaxRouterNumber;++i) { //Start from 12 in production environment for faster response
 				/* if the data is cached */
 				if(cache_ttl[i] > 0) {
 					//Transmit cached data to Bluetooth end
@@ -1864,7 +1864,7 @@ int main() {
                     myaddr[i] = recBuffer_Zigbee[i + 1];
                 }
 
-                temp = recBuffer_Zigbee[sizeof(myaddr) + 2] * 256 + recBuffer_Zigbee[sizeof(myaddr) + 3];
+                temp = recBuffer_Zigbee[sizeof(myaddr) + 2] * 256 + recBuffer_Zigbee[sizeof(myaddr) + 3]; // current value
                 SendACKtoZigBee(myaddr,recBuffer_Zigbee[sizeof(myaddr) + 1],temp);
 
 				LEDON();
