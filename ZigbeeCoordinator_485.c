@@ -498,24 +498,10 @@ void StoreZigbeeReceivedData() {
 	unsigned char DataType;
 	unsigned int index;
     TimeStamp currentTime;
-
-	/* Step 1: Get Router Address */
-	for(i = 0;i < sizeof(myaddr);++i) {
-		myaddr[i] = recBuffer_Zigbee[i + 1];//router address
-	}
     
-    /* Step 3: Mapping Address to ID */
-    /*temp = getRouterId(myaddr,sizeof(myaddr));
-    #ifdef TestUSART1
-        USART0_Send_Byte(0x53);
-        USART0_Send_Byte(temp);
-    #endif
-    if(temp == 0 || temp > MaxRouterNumber) {
-        #ifdef TestUSART1
-            USART0_Send_Byte(0x01);
-        #endif
-        return;
-    }*/
+    /* the first byte of the package is length */
+	/* Step 1: Do Nothing */
+    
     /* Step 2: Obtain Data(id , Voltage , Current , address) */
     id = recBuffer_Zigbee[sizeof(myaddr) + 1];
 	Current = recBuffer_Zigbee[sizeof(myaddr) + 2] * 256 + recBuffer_Zigbee[sizeof(myaddr) + 3];
@@ -531,7 +517,7 @@ void StoreZigbeeReceivedData() {
     } else {
         /* Store Id and Address Mapping Relationship */
         for(i = 0;i < sizeof(myaddr);++i) {
-            addressIdMapping[id - 1].address[i] = myaddr[i];
+            addressIdMapping[id - 1].address[i] = recBuffer_Zigbee[i + 1];
         }
     }
     
@@ -689,6 +675,12 @@ unsigned int getRightNowData(volatile unsigned char *addr,unsigned char id,unsig
         /* Send back Acknowladgement */
         SendACKtoZigBee(myaddr,recBuffer_Zigbee[sizeof(myaddr) + 1],Current);
         
+        /* Verify id again !! */
+        if(recBuffer_Zigbee[sizeof(myaddr) + 1] != id) {
+            RealTimeQuery = 0;
+            return MYINT_MAX;//Error Code
+        }
+
         if(c != NULL) *(c) = Current;
         if(Current < 25500) {
             Current = Current / 100;
