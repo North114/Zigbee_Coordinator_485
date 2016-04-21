@@ -34,6 +34,7 @@ date:03-17-2015
 #include "include/usart.h"
 #include "include/init.h"
 #include "include/485.h"
+#include "include/mytime.h"
 
 /* Zigbee Related Macro */
 /** StartByte_Zigbee + UserIDByte + LeakageValueByteMSB + LeakageValueByteLSB
@@ -55,7 +56,7 @@ date:03-17-2015
 #define HISTORY_DATA 0x01
 #define FINAL_PACKAGE 0x80
 #define COORDINATOR_ID 2
-#define QUERYRETRYTIME 1
+#define QUERYRETRYTIME 2
 
 /* 485 Related Macro */
 #define recBufferSize_485 256// larger than PackLen
@@ -221,6 +222,9 @@ volatile unsigned char cache_ttl[CACHE_SPACE] = {0};
 volatile unsigned int T0_Count = 0;
 volatile unsigned int bisecondCount = 0;
 volatile unsigned char modTemp = 0;
+
+/* TimeStamp to Record the time of last received package */
+volatile TimeStamp timestamp[MaxRouterNumber];
 
 /*
 Structure for read button status
@@ -449,8 +453,7 @@ void SendACKtoZigBee(volatile unsigned char *addr,unsigned char id,unsigned int 
     ACK_Zigbee[sizeof(myaddr) + 4] = current / 256;//leak current high byte
     ACK_Zigbee[sizeof(myaddr) + 5] = current % 256;//leak current low byte
 
-    for(i = 0;i < Zigbee_AckLen;i++)
-    {
+    for(i = 0;i < Zigbee_AckLen;i++) {
         USART1_Send_Byte(ACK_Zigbee[i]);
     } 
 }
@@ -494,6 +497,7 @@ void StoreZigbeeReceivedData() {
 	unsigned int id,Current,Voltage;
 	unsigned char DataType;
 	unsigned int index;
+    TimeStamp currentTime;
 
 	/* Step 1: Get Router Address */
 	for(i = 0;i < sizeof(myaddr);++i) {
@@ -531,6 +535,18 @@ void StoreZigbeeReceivedData() {
         }
     }
     
+    /* Step 2.5:  Check Time Interval */
+    Read_Current_Time(DS1307,CurrentTime,sizeof(CurrentTime));
+    currentTime.Year = CurrentTime[YEAR];
+    currentTime.Month = CurrentTime[MONTH];
+    currentTime.Day = CurrentTime[DATE];
+    currentTime.Hour = CurrentTime[HOUR];
+    currentTime.Minute = CurrentTime[MINUTE];
+    currentTime.Second = CurrentTime[SECOND];
+    /* Interval is less than 300 seconds */
+    if(CompareTimeStamp(timestamp[id],currentTime) == 0) return;
+    timestamp[id] = currentTime; // updating record time
+
     #ifdef TestUSART1
         USART0_Send_Byte(id);
         USART0_Send_Byte(Current);
@@ -644,8 +660,16 @@ unsigned int getRightNowData(volatile unsigned char *addr,unsigned char id,unsig
     USART1_Send_Byte(EndByte_Zigbee);
     /* Wait for ACK for 1.5 second */
     for(i = 0;i < QueryPeriod;++i) {
-        if(1 == recFlag_Zigbee) break;
-        else _delay_ms(50);
+        if(1 == recFlag_Zigbee) {
+            if(id == recBuffer_Zigbee[sizeof(myaddr) + 1]) break;
+            /* In other case , just reply a ack package */
+            for(i = 0; i < sizeof(myaddr);++i) {
+                myaddr[i] = recBuffer_Zigbee[i + 1];
+            }
+            Current = recBuffer_Zigbee[sizeof(myaddr) + 2] * 256 + recBuffer_Zigbee[sizeof(myaddr) + 3];
+            SendACKtoZigBee(myaddr,recBuffer_Zigbee[sizeof(myaddr) + 1],Current);
+            recFlag_Zigbee = 0;
+        } else _delay_ms(50);
     }
 
     //feed dog
@@ -1687,7 +1711,7 @@ void ReceivedDataProcess_GPRS(unsigned char recNum){
     if(recNum == 1) {
         if(commandbyte == 0x30) {
             /* Query all Node */
-			for(i = 1;i <= MaxRouterNumber;++i) { //Start from 1
+			for(i = 12;i <= MaxRouterNumber;++i) { //Start from 1
 				/* if the data is cached */
 				if(cache_ttl[i] > 0) {
 					//Transmit cached data to Bluetooth end
