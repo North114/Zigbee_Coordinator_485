@@ -1,4 +1,4 @@
-﻿#ifndef IIC_H
+#ifndef IIC_H
 	#include <avr/io.h>
 
 	#define IIC_H

@@ -4,7 +4,7 @@ CFLAGS=-Wall -Os
 TFLAGS=-j .text -j .data -O ihex
 DFLAG=-p m644p -c usbasp -e -U 
 HEADERS=include/ds1307.c include/usart.c include/at24c128.c include/init.c include/mytime.c
-MACROS=#-DDEBUG#
+MACROS=-DDEBUG#
 ## file name lists
 ## GPRS_Config_NakedSend.c
 ## Zigbee_Coordinator_July_24.c
@@ -26,7 +26,19 @@ $(OBJECT):$(SOURCE)
 
 ## dl for down load
 dl:
+	@echo "Start Downloading!"
+ifneq (, $(findstring linux,$(OS_TYPE)))
 	sudo avrdude $(DFLAG) flash:w:$(OUTPUT)
+else ifneq (, $(findstring mingw, $(OS_TYPE)))
+	avrdude $(DFLAG) flash:w:$(OUTPUT)
+else ifneq (, $(findstring cygwin, $(OS_TYPE)))
+	avrdude $(DFLAG) flash:w:$(OUTPUT)
+else
+	@echo "un-defined OS , execuate default operation!"
+	avrdude $(DFLAG) flash:w:$(OUTPUT)
+
+	@echo "Downloading Finished!"
+endif
 
 clean:
 	rm $(OBJECT) $(OUTPUT)
