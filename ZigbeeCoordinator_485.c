@@ -278,8 +278,8 @@ void initIO() {
 	   we need to set and clear bit one ny one !!!!!!!
 	*/
     
-    PORTD = setBit(PORTD,5);
-    PORTD = clearBit(PORTD,4);
+    PORTD = clearBit(PORTD,5);
+    PORTD = setBit(PORTD,4);
 
 	/* make 485 enable pin Output pin */
 	DDRB |= 0x10;//485 enable pin
@@ -1796,7 +1796,7 @@ int main() {
     cli();
     /* Initialization */
     TWI_Init();
-    USART0_Init(38400);//Initialize USART0 with baud rate of 2400(485 Bus)
+    USART0_Init(2400);//Initialize USART0 with baud rate of 2400(485 Bus)
     USART1_Init(38400);//Initialize USART1 with baud rate of 38400(Zigbee)
     Timer0_Init();
     InitWatchDogTimer();
